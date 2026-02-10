@@ -2,6 +2,7 @@ import React from "react"
 import type { Metadata, Viewport } from "next"
 import { Bebas_Neue, Manrope } from "next/font/google"
 import { CartProvider } from "@/context/cart-context"
+import { Toaster } from "@/components/ui/sonner"
 
 import "./globals.css"
 
@@ -119,6 +120,7 @@ export default function RootLayout({
           }}
         />
         <CartProvider>{children}</CartProvider>
+        <Toaster position="top-right" richColors />
       </body>
     </html>
   )

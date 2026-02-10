@@ -34,7 +34,7 @@ export function ContactSection() {
         <h2 className="mb-6 text-center text-sm font-semibold uppercase tracking-widest text-muted-foreground">
           Contacto
         </h2>
-        <div className="flex flex-wrap items-center justify-center gap-8 sm:gap-10 lg:gap-12">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4 lg:gap-4">
           {links.map((item) => {
             const Icon = item.icon
             return (
@@ -43,13 +43,15 @@ export function ContactSection() {
                 href={item.href}
                 target={item.href.startsWith("http") ? "_blank" : undefined}
                 rel={item.href.startsWith("http") ? "noopener noreferrer" : undefined}
-                className="flex items-center gap-3 text-foreground transition-colors hover:text-carnival-primary"
+                className="flex min-w-0 items-center gap-3 rounded-xl border border-border bg-background px-3 py-3 text-foreground transition-colors hover:border-carnival-primary/30 hover:text-carnival-primary"
                 aria-label={item.label}
               >
                 <span className="flex h-10 w-10 items-center justify-center rounded-full bg-background border border-border text-muted-foreground transition-colors hover:border-carnival-primary/30 hover:text-carnival-primary">
                   <Icon className="h-4 w-4" />
                 </span>
-                <span className="text-sm font-medium sm:text-base">{item.value}</span>
+                <span className="min-w-0 break-words text-sm font-medium sm:text-base">
+                  {item.value}
+                </span>
               </a>
             )
           })}

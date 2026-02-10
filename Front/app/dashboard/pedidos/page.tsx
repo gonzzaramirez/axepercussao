@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Card, CardContent } from "@/components/ui/card"
 import {
   Dialog,
   DialogContent,
@@ -28,6 +29,7 @@ import {
 } from "@/lib/api/order"
 import type { Order } from "@/types"
 import { Loader2, Eye, CheckCircle, Truck, XCircle } from "lucide-react"
+import { useDashboardLayout } from "@/hooks/use-dashboard-layout"
 
 function formatPrice(price: number): string {
   return new Intl.NumberFormat("es-AR", { style: "currency", currency: "ARS", minimumFractionDigits: 0 }).format(price)
@@ -45,6 +47,7 @@ const statusConfig: Record<string, { label: string; color: string }> = {
 }
 
 export default function PedidosPage() {
+  const { viewMode } = useDashboardLayout()
   const [orders, setOrders] = useState<Order[]>([])
   const [loading, setLoading] = useState(true)
   const [tab, setTab] = useState("all")
@@ -120,7 +123,7 @@ export default function PedidosPage() {
       </div>
 
       <Tabs value={tab} onValueChange={setTab} className="mb-4">
-        <TabsList>
+        <TabsList className="grid h-auto w-full grid-cols-2 gap-1 sm:w-fit sm:grid-cols-5">
           <TabsTrigger value="all">Todos</TabsTrigger>
           <TabsTrigger value="PENDING">Pendientes</TabsTrigger>
           <TabsTrigger value="CONFIRMED">Confirmados</TabsTrigger>
@@ -132,6 +135,103 @@ export default function PedidosPage() {
       {loading ? (
         <div className="flex items-center justify-center py-12">
           <Loader2 className="h-8 w-8 animate-spin text-gray-400" />
+        </div>
+      ) : viewMode === "card" ? (
+        <div className="space-y-3">
+          {orders.map((order) => {
+            const status = statusConfig[order.status] || statusConfig.PENDING
+            const isLoading = actionLoading === order.id
+            return (
+              <Card key={order.id}>
+                <CardContent className="space-y-3 p-4">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="font-mono text-sm">
+                        #{order.id.slice(0, 8).toUpperCase()}
+                      </p>
+                      <p className="text-xs text-gray-500">{formatDate(order.createdAt)}</p>
+                    </div>
+                    <Badge className={`${status.color} border-transparent`}>{status.label}</Badge>
+                  </div>
+
+                  <div className="rounded-lg bg-gray-50 p-3">
+                    {order.guestCustomer ? (
+                      <>
+                        <p className="text-sm font-medium text-gray-900">
+                          {order.guestCustomer.firstName} {order.guestCustomer.lastName}
+                        </p>
+                        <p className="text-xs text-gray-500">{order.guestCustomer.email}</p>
+                      </>
+                    ) : (
+                      <p className="text-sm text-gray-500">Cliente no disponible</p>
+                    )}
+                  </div>
+
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="text-gray-500">{order.items?.length ?? 0} items</span>
+                    <span className="font-semibold text-gray-900">{formatPrice(order.totalAmount)}</span>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-2">
+                    <Button
+                      variant="secondary"
+                      onClick={() => setSelectedOrder(order)}
+                    >
+                      <Eye className="mr-2 h-4 w-4" />
+                      Ver
+                    </Button>
+                    {order.status === "PENDING" ? (
+                      <Button
+                        variant="outline"
+                        className="text-green-700"
+                        onClick={() => handleConfirm(order.id)}
+                        disabled={isLoading}
+                      >
+                        {isLoading ? (
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        ) : (
+                          <CheckCircle className="mr-2 h-4 w-4" />
+                        )}
+                        Confirmar
+                      </Button>
+                    ) : order.status === "CONFIRMED" ? (
+                      <Button
+                        variant="outline"
+                        className="text-blue-700"
+                        onClick={() => openTracking(order.id)}
+                      >
+                        <Truck className="mr-2 h-4 w-4" />
+                        Enviar
+                      </Button>
+                    ) : (
+                      <Button variant="outline" disabled>
+                        Sin acciones
+                      </Button>
+                    )}
+                  </div>
+
+                  {order.status === "PENDING" && (
+                    <Button
+                      variant="ghost"
+                      className="w-full text-destructive hover:text-destructive"
+                      onClick={() => handleCancel(order.id)}
+                      disabled={isLoading}
+                    >
+                      <XCircle className="mr-2 h-4 w-4" />
+                      Cancelar pedido
+                    </Button>
+                  )}
+                </CardContent>
+              </Card>
+            )
+          })}
+          {orders.length === 0 && (
+            <Card>
+              <CardContent className="py-8 text-center text-sm text-gray-500">
+                No hay pedidos
+              </CardContent>
+            </Card>
+          )}
         </div>
       ) : (
         <div className="rounded-lg border border-gray-200 bg-white">
@@ -207,7 +307,7 @@ export default function PedidosPage() {
 
       {/* Dialog detalle */}
       <Dialog open={!!selectedOrder} onOpenChange={() => setSelectedOrder(null)}>
-        <DialogContent className="sm:max-w-lg">
+        <DialogContent className="w-[calc(100vw-1rem)] max-w-[calc(100vw-1rem)] sm:max-w-lg">
           <DialogHeader>
             <DialogTitle>Pedido #{selectedOrder?.id.slice(0, 8).toUpperCase()}</DialogTitle>
           </DialogHeader>
@@ -258,7 +358,7 @@ export default function PedidosPage() {
 
       {/* Dialog tracking */}
       <Dialog open={trackingDialog} onOpenChange={setTrackingDialog}>
-        <DialogContent>
+        <DialogContent className="w-[calc(100vw-1rem)] max-w-[calc(100vw-1rem)] sm:max-w-lg">
           <DialogHeader>
             <DialogTitle>Agregar código de seguimiento</DialogTitle>
           </DialogHeader>
@@ -272,9 +372,9 @@ export default function PedidosPage() {
               <Input value={courierName} onChange={(e) => setCourierName(e.target.value)} placeholder="Ej: DAC, UES, etc." />
             </div>
           </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setTrackingDialog(false)}>Cancelar</Button>
-            <Button onClick={handleSendTracking} disabled={!trackingCode.trim() || actionLoading === trackingOrderId}>
+          <DialogFooter className="flex-col gap-2 sm:flex-row">
+            <Button variant="outline" onClick={() => setTrackingDialog(false)} className="w-full sm:w-auto">Cancelar</Button>
+            <Button onClick={handleSendTracking} disabled={!trackingCode.trim() || actionLoading === trackingOrderId} className="w-full sm:w-auto">
               {actionLoading === trackingOrderId && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               Enviar
             </Button>

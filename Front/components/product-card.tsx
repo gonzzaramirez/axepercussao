@@ -86,7 +86,7 @@ export function ProductCard({ product, index = 0 }: ProductCardProps) {
             <Button
               onClick={handleAddToCart}
               size="icon"
-              className="absolute bottom-3 right-3 h-11 w-11 rounded-full bg-carnival-primary text-white opacity-0 shadow-lg transition-all hover:bg-carnival-primary/90 group-hover:opacity-100"
+              className="absolute bottom-3 right-3 h-11 w-11 rounded-full bg-carnival-primary text-white opacity-100 shadow-lg transition-all hover:bg-carnival-primary/90 sm:opacity-0 sm:group-hover:opacity-100"
               aria-label={hasMultipleOptions ? `Ver opciones de ${product.name}` : `Agregar ${product.name} al carrito`}
             >
               <ShoppingCart className="h-5 w-5" />
@@ -114,11 +114,11 @@ export function ProductCard({ product, index = 0 }: ProductCardProps) {
             <div className="flex items-center justify-between">
               <div>
                 {priceRange ? (
-                  <p className="font-display text-xl text-carnival-primary">
+                  <p className="font-display text-lg text-carnival-primary sm:text-xl">
                     {formatPrice(priceRange.min)} <span className="text-sm text-muted-foreground">–</span> {formatPrice(priceRange.max)}
                   </p>
                 ) : (
-                  <p className="font-display text-2xl text-carnival-primary">
+                  <p className="font-display text-xl text-carnival-primary sm:text-2xl">
                     {formatPrice(product.price)}
                   </p>
                 )}

@@ -50,7 +50,7 @@ export function CtaBanner() {
               <Button
                 asChild
                 size="lg"
-                className="rounded-full bg-white px-6 py-5 font-bold uppercase tracking-wider text-carnival-primary shadow-lg hover:bg-white/95 sm:px-8 sm:py-6"
+                className="w-full rounded-full bg-white px-6 py-5 font-bold uppercase tracking-wider text-carnival-primary shadow-lg hover:bg-white/95 sm:w-auto sm:px-8 sm:py-6"
               >
                 <a
                   href="https://wa.me/5491100000000?text=Hola%20Axe%20Percussao!%20Quiero%20consultar%20por%20personalizacion"

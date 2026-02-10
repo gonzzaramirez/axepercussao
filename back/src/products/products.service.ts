@@ -3,7 +3,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { CreateProductDto } from './dto/create-product.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
 import { BulkPriceUpdateDto } from './dto/bulk-price-update.dto';
-import { ProductType } from '@prisma/client';
+import { ProductType, InstrumentRegister } from '@prisma/client';
 
 @Injectable()
 export class ProductsService {
@@ -21,6 +21,9 @@ export class ProductsService {
     if (query.type) {
       where.productType = query.type;
     }
+    if (query.register) {
+      where.instrumentRegister = query.register;
+    }
     if (query.categoryId) {
       where.categoryId = parseInt(query.categoryId);
     }
@@ -34,7 +37,13 @@ export class ProductsService {
 
     return this.prisma.product.findMany({
       where,
-      include: { category: true, variants: { include: { brand: true } } },
+      include: {
+        category: true,
+        variants: {
+          include: { brand: true },
+          orderBy: { createdAt: 'asc' },
+        },
+      },
       orderBy: { createdAt: 'desc' },
     });
   }
@@ -42,7 +51,13 @@ export class ProductsService {
   async findOne(id: string) {
     const product = await this.prisma.product.findFirst({
       where: { id, deletedAt: null },
-      include: { category: true, variants: { include: { brand: true } } },
+      include: {
+        category: true,
+        variants: {
+          include: { brand: true },
+          orderBy: { createdAt: 'asc' },
+        },
+      },
     });
 
     if (!product) {
@@ -55,7 +70,14 @@ export class ProductsService {
   async findBySlug(slug: string) {
     const product = await this.prisma.product.findFirst({
       where: { slug, deletedAt: null, isActive: true },
-      include: { category: true, variants: { include: { brand: true } } },
+      include: {
+        category: true,
+        variants: {
+          where: { isActive: true },
+          include: { brand: true },
+          orderBy: { createdAt: 'asc' },
+        },
+      },
     });
 
     if (!product) {
@@ -66,12 +88,22 @@ export class ProductsService {
   }
 
   async create(dto: CreateProductDto) {
-    const { variants, discountStartDate, discountEndDate, ...data } = dto;
+    const {
+      variants,
+      discountStartDate,
+      discountEndDate,
+      productType,
+      instrumentRegister,
+      ...data
+    } = dto;
 
     return this.prisma.product.create({
       data: {
         ...data,
-        productType: (data.productType as ProductType) || 'INSTRUMENT',
+        productType: (productType as ProductType) || 'INSTRUMENT',
+        instrumentRegister: instrumentRegister
+          ? (instrumentRegister as InstrumentRegister)
+          : null,
         discountStartDate: discountStartDate
           ? new Date(discountStartDate)
           : undefined,
@@ -82,19 +114,22 @@ export class ProductsService {
           ? {
               create: variants.map((v) => ({
                 sku: v.sku,
-                brandId: v.brandId,
-                size: v.size,
-                model: v.model,
-                material: v.material,
-                price: v.price,
+                brandId: v.brandId || null,
+                size: v.size || null,
+                model: v.model || null,
+                material: v.material || null,
+                price: v.price ?? null,
                 stockQuantity: v.stockQuantity ?? 0,
-                imageUrl: v.imageUrl,
+                imageUrl: v.imageUrl || null,
                 isActive: v.isActive ?? true,
               })),
             }
           : undefined,
       },
-      include: { category: true, variants: { include: { brand: true } } },
+      include: {
+        category: true,
+        variants: { include: { brand: true } },
+      },
     });
   }
 
@@ -105,48 +140,112 @@ export class ProductsService {
       variants,
       discountStartDate,
       discountEndDate,
+      productType,
+      instrumentRegister,
       ...data
     } = dto;
 
-    // Si se envían variants, reemplazar todos
-    if (variants) {
-      await this.prisma.productVariant.deleteMany({
-        where: { productId: id },
+    return this.prisma.$transaction(async (tx) => {
+      // 1. Actualizar el producto base
+      await tx.product.update({
+        where: { id },
+        data: {
+          ...data,
+          // Manejar enums explícitamente
+          ...(productType !== undefined
+            ? { productType: productType as ProductType }
+            : {}),
+          ...(instrumentRegister !== undefined
+            ? {
+                instrumentRegister: instrumentRegister
+                  ? (instrumentRegister as InstrumentRegister)
+                  : null,
+              }
+            : {}),
+          // Manejar fechas
+          ...(discountStartDate !== undefined
+            ? {
+                discountStartDate: discountStartDate
+                  ? new Date(discountStartDate)
+                  : null,
+              }
+            : {}),
+          ...(discountEndDate !== undefined
+            ? {
+                discountEndDate: discountEndDate
+                  ? new Date(discountEndDate)
+                  : null,
+              }
+            : {}),
+        },
       });
-    }
 
-    return this.prisma.product.update({
-      where: { id },
-      data: {
-        ...data,
-        productType: data.productType as ProductType | undefined,
-        discountStartDate: discountStartDate
-          ? new Date(discountStartDate)
-          : discountStartDate === null
-            ? null
-            : undefined,
-        discountEndDate: discountEndDate
-          ? new Date(discountEndDate)
-          : discountEndDate === null
-            ? null
-            : undefined,
-        variants: variants
-          ? {
-              create: variants.map((v) => ({
-                sku: v.sku,
-                brandId: v.brandId,
-                size: v.size,
-                model: v.model,
-                material: v.material,
-                price: v.price,
-                stockQuantity: v.stockQuantity ?? 0,
-                imageUrl: v.imageUrl,
-                isActive: v.isActive ?? true,
-              })),
-            }
-          : undefined,
-      },
-      include: { category: true, variants: { include: { brand: true } } },
+      // 2. Gestión inteligente de variantes (upsert, no delete+recreate)
+      if (variants !== undefined) {
+        const existing = await tx.productVariant.findMany({
+          where: { productId: id },
+          select: { id: true },
+        });
+
+        const existingIds = existing.map((v) => v.id);
+        const submittedIds = new Set(
+          variants.filter((v) => v.id).map((v) => v.id!),
+        );
+
+        // Desactivar variantes que el admin eliminó (soft delete, preserva refs de pedidos)
+        const toDeactivate = existingIds.filter(
+          (eid) => !submittedIds.has(eid),
+        );
+        if (toDeactivate.length > 0) {
+          await tx.productVariant.updateMany({
+            where: { id: { in: toDeactivate } },
+            data: { isActive: false },
+          });
+        }
+
+        // Procesar variantes enviadas
+        for (const v of variants) {
+          const variantData = {
+            sku: v.sku,
+            brandId: v.brandId || null,
+            size: v.size || null,
+            model: v.model || null,
+            material: v.material || null,
+            price: v.price ?? null,
+            stockQuantity: v.stockQuantity ?? 0,
+            imageUrl: v.imageUrl || null,
+            isActive: v.isActive ?? true,
+          };
+
+          if (v.id && existingIds.includes(v.id)) {
+            // Actualizar variante existente
+            await tx.productVariant.update({
+              where: { id: v.id },
+              data: variantData,
+            });
+          } else {
+            // Crear nueva variante
+            await tx.productVariant.create({
+              data: {
+                ...variantData,
+                productId: id,
+              },
+            });
+          }
+        }
+      }
+
+      // 3. Retornar producto actualizado con variantes activas
+      return tx.product.findUnique({
+        where: { id },
+        include: {
+          category: true,
+          variants: {
+            include: { brand: true },
+            orderBy: { createdAt: 'asc' },
+          },
+        },
+      });
     });
   }
 

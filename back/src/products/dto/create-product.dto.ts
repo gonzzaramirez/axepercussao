@@ -14,6 +14,10 @@ import { Type } from 'class-transformer';
 
 export class CreateVariantDto {
   @IsString()
+  @IsOptional()
+  id?: string;
+
+  @IsString()
   @IsNotEmpty()
   sku: string;
 
@@ -68,6 +72,10 @@ export class CreateProductDto {
   @IsNotEmpty()
   description: string;
 
+  @IsString()
+  @IsOptional()
+  shortDescription?: string;
+
   @IsInt()
   @IsOptional()
   @Min(0)
@@ -81,6 +89,11 @@ export class CreateProductDto {
   @IsString()
   @IsOptional()
   imageUrl?: string;
+
+  @IsArray()
+  @IsOptional()
+  @IsString({ each: true })
+  images?: string[];
 
   @IsBoolean()
   @IsOptional()
@@ -97,6 +110,10 @@ export class CreateProductDto {
   @IsEnum(['INSTRUMENT', 'ACCESSORY'])
   @IsOptional()
   productType?: string;
+
+  @IsEnum(['AGUDO', 'MEDIO', 'GRAVE'])
+  @IsOptional()
+  instrumentRegister?: string;
 
   @IsBoolean()
   @IsOptional()

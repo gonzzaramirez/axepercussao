@@ -20,6 +20,8 @@ export async function getProducts(options?: {
   categoryId?: number
   search?: string
   register?: string
+  /** Si true, incluye productos inactivos y usa credentials (para admin) */
+  admin?: boolean
 }): Promise<Product[]> {
   const params = new URLSearchParams()
   if (options?.featured) params.set("featured", "true")
@@ -27,10 +29,13 @@ export async function getProducts(options?: {
   if (options?.categoryId) params.set("categoryId", options.categoryId.toString())
   if (options?.search) params.set("search", options.search)
   if (options?.register) params.set("register", options.register)
+  if (options?.admin) params.set("active", "false")
 
-  const res = await fetch(`${API_URL}/products?${params}`, {
-    next: { revalidate: 60 },
-  })
+  const fetchOptions: RequestInit = options?.admin
+    ? { credentials: "include" }
+    : { next: { revalidate: 60 } as any }
+
+  const res = await fetch(`${API_URL}/products?${params}`, fetchOptions)
 
   if (!res.ok) throw new Error("Error obteniendo productos")
   const data = await res.json()

@@ -3,10 +3,7 @@
 import { useEffect, useState, useCallback } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Textarea } from "@/components/ui/textarea"
-import { Badge } from "@/components/ui/badge"
-import { Switch } from "@/components/ui/switch"
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import {
   Select,
   SelectContent,
@@ -15,280 +12,309 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogFooter,
-} from "@/components/ui/dialog"
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table"
-import { getProducts, createProduct, updateProduct, deleteProduct } from "@/lib/api/product"
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
+import { getProducts, deleteProduct } from "@/lib/api/product"
 import { getCategories } from "@/lib/api/category"
-import type { Product, Category } from "@/types"
-import { Plus, Pencil, Trash2, Search, Loader2 } from "lucide-react"
+import { getBrands } from "@/lib/api/brand"
+import type { Product, Category, Brand } from "@/types"
+import {
+  Plus,
+  Search,
+  Loader2,
+  Package,
+  Wrench,
+  Layers,
+} from "lucide-react"
+import { ProductFormDialog } from "./components/product-form-dialog"
+import { ProductsDataCard } from "./components/data-card"
+import { ProductsDataTable } from "./components/data-table"
+import { toast } from "sonner"
+import { useDashboardLayout } from "@/hooks/use-dashboard-layout"
+
+// ─── Helpers ────────────────────────────────────────
 
 function formatPrice(price: number): string {
-  return new Intl.NumberFormat("es-AR", { style: "currency", currency: "ARS", minimumFractionDigits: 0 }).format(price)
+  return new Intl.NumberFormat("es-AR", {
+    style: "currency",
+    currency: "ARS",
+    minimumFractionDigits: 0,
+  }).format(price)
 }
 
+// ─── Página ─────────────────────────────────────────
+
 export default function ProductosPage() {
+  const { viewMode } = useDashboardLayout()
   const [products, setProducts] = useState<Product[]>([])
   const [categories, setCategories] = useState<Category[]>([])
+  const [brands, setBrands] = useState<Brand[]>([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState("")
-  const [dialogOpen, setDialogOpen] = useState(false)
-  const [editing, setEditing] = useState<Product | null>(null)
-  const [saving, setSaving] = useState(false)
+  const [typeFilter, setTypeFilter] = useState<string>("all")
+  const [categoryFilter, setCategoryFilter] = useState<string>("all")
 
-  // Form state
-  const [form, setForm] = useState({
-    name: "", slug: "", sku: "", description: "", price: 0,
-    stockQuantity: 0, imageUrl: "", isActive: true, isFeatured: false,
-    categoryId: 0, productType: "INSTRUMENT" as string,
-  })
+  // Dialog
+  const [dialogOpen, setDialogOpen] = useState(false)
+  const [editingProduct, setEditingProduct] = useState<Product | null>(null)
+
+  // Delete confirmation
+  const [deleteTarget, setDeleteTarget] = useState<Product | null>(null)
+  const [deleting, setDeleting] = useState(false)
+
+  // ─── Carga de datos ────
 
   const loadData = useCallback(async () => {
     try {
-      const [prods, cats] = await Promise.all([
-        getProducts({ search: search || undefined }),
+      const [prods, cats, brnds] = await Promise.all([
+        getProducts({ admin: true }),
         getCategories(),
+        getBrands(),
       ])
       setProducts(prods)
       setCategories(cats)
-    } catch { /* fallback */ }
+      setBrands(brnds)
+    } catch (err) {
+      console.error("Error cargando datos:", err)
+    }
     setLoading(false)
-  }, [search])
+  }, [])
 
-  useEffect(() => { loadData() }, [loadData])
+  useEffect(() => {
+    loadData()
+  }, [loadData])
+
+  // ─── Filtrado ────
+
+  const filteredProducts = products.filter((p) => {
+    // Filtro por tipo
+    if (typeFilter === "INSTRUMENT" && p.productType !== "INSTRUMENT")
+      return false
+    if (typeFilter === "ACCESSORY" && p.productType !== "ACCESSORY")
+      return false
+
+    // Filtro por categoría
+    if (
+      categoryFilter !== "all" &&
+      p.categoryId?.toString() !== categoryFilter
+    )
+      return false
+
+    // Filtro por búsqueda
+    if (search) {
+      const q = search.toLowerCase()
+      return (
+        p.name.toLowerCase().includes(q) ||
+        (p.sku && p.sku.toLowerCase().includes(q)) ||
+        p.description.toLowerCase().includes(q)
+      )
+    }
+
+    return true
+  })
+
+  // ─── Stats rápidos ────
+
+  const stats = {
+    total: products.length,
+    instruments: products.filter((p) => p.productType === "INSTRUMENT").length,
+    accessories: products.filter((p) => p.productType === "ACCESSORY").length,
+    totalVariants: products.reduce(
+      (sum, p) => sum + (p.variants?.length || 0),
+      0
+    ),
+  }
+
+  // ─── Acciones ────
 
   const openCreate = () => {
-    setEditing(null)
-    setForm({ name: "", slug: "", sku: "", description: "", price: 0, stockQuantity: 0, imageUrl: "", isActive: true, isFeatured: false, categoryId: 0, productType: "INSTRUMENT" })
+    setEditingProduct(null)
     setDialogOpen(true)
   }
 
   const openEdit = (product: Product) => {
-    setEditing(product)
-    setForm({
-      name: product.name, slug: product.slug, sku: product.sku || "",
-      description: product.description, price: product.price,
-      stockQuantity: product.stockQuantity ?? 0,
-      imageUrl: product.imageUrl || "",
-      isActive: product.isActive ?? true,
-      isFeatured: product.isFeatured ?? false,
-      categoryId: product.categoryId ?? 0,
-      productType: product.productType || "INSTRUMENT",
-    })
+    setEditingProduct(product)
     setDialogOpen(true)
   }
 
-  const handleSave = async () => {
-    setSaving(true)
+  const handleDelete = async () => {
+    if (!deleteTarget) return
+    setDeleting(true)
     try {
-      const data = {
-        ...form,
-        categoryId: form.categoryId || undefined,
-        imageUrl: form.imageUrl || undefined,
-      }
-      if (editing) {
-        await updateProduct(editing.id, data)
-      } else {
-        await createProduct(data)
-      }
-      setDialogOpen(false)
+      await deleteProduct(deleteTarget.id)
+      toast.success(`"${deleteTarget.name}" eliminado`)
       loadData()
     } catch (err: any) {
-      alert(err.message)
+      toast.error(err.message || "Error eliminando producto")
     }
-    setSaving(false)
+    setDeleting(false)
+    setDeleteTarget(null)
   }
 
-  const handleDelete = async (id: string) => {
-    if (!confirm("¿Eliminar este producto?")) return
-    try {
-      await deleteProduct(id)
-      loadData()
-    } catch (err: any) {
-      alert(err.message)
-    }
-  }
+  // ─── Categorías filtradas según el tab activo ────
 
-  const generateSlug = (name: string) => {
-    return name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "")
-  }
+  const filteredCategories =
+    typeFilter === "all"
+      ? categories
+      : categories.filter((c) => {
+          // Usar los productos existentes para determinar qué categorías mostrar
+          return products.some(
+            (p) =>
+              p.categoryId === c.id && p.productType === typeFilter
+          )
+        })
 
   return (
     <div>
+      {/* ═══ Header ═══ */}
       <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div>
+        <div className="space-y-2">
           <h1 className="text-2xl font-bold text-gray-900">Productos</h1>
-          <p className="text-sm text-gray-500">{products.length} productos</p>
+          <div className="flex flex-wrap gap-2 text-xs text-gray-600">
+            <span className="rounded-full bg-gray-100 px-2.5 py-1">
+              {stats.total} productos
+            </span>
+            <span className="rounded-full bg-gray-100 px-2.5 py-1">
+              {stats.instruments} instrumentos
+            </span>
+            <span className="rounded-full bg-gray-100 px-2.5 py-1">
+              {stats.accessories} accesorios
+            </span>
+            <span className="rounded-full bg-gray-100 px-2.5 py-1">
+              {stats.totalVariants} variantes
+            </span>
+          </div>
         </div>
-        <Button onClick={openCreate}>
-          <Plus className="mr-2 h-4 w-4" /> Nuevo producto
+        <Button onClick={openCreate} size="lg" className="w-full sm:w-auto">
+          <Plus className="mr-2 h-4 w-4" />
+          Nuevo producto
         </Button>
       </div>
 
-      <div className="mb-4">
-        <div className="relative max-w-sm">
-          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
-          <Input
-            placeholder="Buscar productos..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="pl-9"
-          />
+      {/* ═══ Filtros ═══ */}
+      <div className="mb-4 space-y-3">
+        <Tabs value={typeFilter} onValueChange={setTypeFilter}>
+          <TabsList className="grid w-full grid-cols-3 sm:w-fit">
+            <TabsTrigger value="all">
+              <Layers className="mr-1.5 h-3.5 w-3.5" />
+              Todos
+            </TabsTrigger>
+            <TabsTrigger value="INSTRUMENT">
+              <Package className="mr-1.5 h-3.5 w-3.5" />
+              Instrumentos
+            </TabsTrigger>
+            <TabsTrigger value="ACCESSORY">
+              <Wrench className="mr-1.5 h-3.5 w-3.5" />
+              Accesorios
+            </TabsTrigger>
+          </TabsList>
+        </Tabs>
+
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+          <Select value={categoryFilter} onValueChange={setCategoryFilter}>
+            <SelectTrigger className="w-full sm:w-[220px]">
+              <SelectValue placeholder="Categoría" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todas las categorías</SelectItem>
+              {filteredCategories.map((c) => (
+                <SelectItem key={c.id} value={c.id.toString()}>
+                  {c.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+
+          <div className="relative flex-1 sm:max-w-sm">
+            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+            <Input
+              placeholder="Buscar por nombre, SKU..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="pl-9"
+            />
+          </div>
         </div>
       </div>
 
+      {/* ═══ Vista responsive ═══ */}
       {loading ? (
-        <div className="flex items-center justify-center py-12">
+        <div className="flex items-center justify-center py-16">
           <Loader2 className="h-8 w-8 animate-spin text-gray-400" />
         </div>
       ) : (
-        <div className="rounded-lg border border-gray-200 bg-white">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Producto</TableHead>
-                <TableHead>SKU</TableHead>
-                <TableHead>Precio</TableHead>
-                <TableHead>Stock</TableHead>
-                <TableHead>Tipo</TableHead>
-                <TableHead>Estado</TableHead>
-                <TableHead className="text-right">Acciones</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {products.map((product) => (
-                <TableRow key={product.id}>
-                  <TableCell>
-                    <div>
-                      <p className="font-medium text-gray-900">{product.name}</p>
-                      <p className="text-xs text-gray-500">{product.category?.name || product.productType}</p>
-                    </div>
-                  </TableCell>
-                  <TableCell className="text-sm text-gray-500">{product.sku}</TableCell>
-                  <TableCell className="font-semibold">{formatPrice(product.price)}</TableCell>
-                  <TableCell>{product.stockQuantity ?? 0}</TableCell>
-                  <TableCell>
-                    <Badge variant="outline" className="text-xs">{product.productType}</Badge>
-                  </TableCell>
-                  <TableCell>
-                    <Badge className={product.isActive ? "bg-green-100 text-green-800 border-transparent" : "bg-gray-100 text-gray-600 border-transparent"}>
-                      {product.isActive ? "Activo" : "Inactivo"}
-                    </Badge>
-                  </TableCell>
-                  <TableCell className="text-right">
-                    <div className="flex justify-end gap-1">
-                      <Button variant="ghost" size="icon" onClick={() => openEdit(product)}>
-                        <Pencil className="h-4 w-4" />
-                      </Button>
-                      <Button variant="ghost" size="icon" onClick={() => handleDelete(product.id)} className="text-destructive hover:text-destructive">
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  </TableCell>
-                </TableRow>
-              ))}
-              {products.length === 0 && (
-                <TableRow>
-                  <TableCell colSpan={7} className="py-8 text-center text-gray-500">
-                    No hay productos
-                  </TableCell>
-                </TableRow>
-              )}
-            </TableBody>
-          </Table>
-        </div>
+        <>
+          {viewMode === "table" ? (
+            <ProductsDataTable
+              products={filteredProducts}
+              onEdit={openEdit}
+              onDelete={setDeleteTarget}
+              formatPrice={formatPrice}
+              search={search}
+            />
+          ) : (
+            <ProductsDataCard
+              products={filteredProducts}
+              onEdit={openEdit}
+              onDelete={setDeleteTarget}
+              formatPrice={formatPrice}
+              search={search}
+            />
+          )}
+        </>
       )}
 
-      {/* Dialog crear/editar */}
-      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-2xl">
-          <DialogHeader>
-            <DialogTitle>{editing ? "Editar producto" : "Nuevo producto"}</DialogTitle>
-          </DialogHeader>
-          <div className="grid gap-4 py-4">
-            <div className="grid gap-4 sm:grid-cols-2">
-              <div>
-                <Label>Nombre *</Label>
-                <Input value={form.name} onChange={(e) => { setForm({ ...form, name: e.target.value, slug: editing ? form.slug : generateSlug(e.target.value) }) }} />
-              </div>
-              <div>
-                <Label>Slug *</Label>
-                <Input value={form.slug} onChange={(e) => setForm({ ...form, slug: e.target.value })} />
-              </div>
-              <div>
-                <Label>SKU *</Label>
-                <Input value={form.sku} onChange={(e) => setForm({ ...form, sku: e.target.value })} />
-              </div>
-              <div>
-                <Label>Precio *</Label>
-                <Input type="number" value={form.price} onChange={(e) => setForm({ ...form, price: parseInt(e.target.value) || 0 })} />
-              </div>
-              <div>
-                <Label>Stock</Label>
-                <Input type="number" value={form.stockQuantity} onChange={(e) => setForm({ ...form, stockQuantity: parseInt(e.target.value) || 0 })} />
-              </div>
-              <div>
-                <Label>Tipo de producto</Label>
-                <Select value={form.productType} onValueChange={(v) => setForm({ ...form, productType: v })}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="INSTRUMENT">Instrumento</SelectItem>
-                    <SelectItem value="ACCESSORY">Accesorio</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div>
-                <Label>Categoría</Label>
-                <Select value={form.categoryId?.toString() || "0"} onValueChange={(v) => setForm({ ...form, categoryId: parseInt(v) })}>
-                  <SelectTrigger><SelectValue placeholder="Sin categoría" /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="0">Sin categoría</SelectItem>
-                    {categories.map((c) => (
-                      <SelectItem key={c.id} value={c.id.toString()}>{c.name}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div>
-                <Label>URL de imagen</Label>
-                <Input value={form.imageUrl} onChange={(e) => setForm({ ...form, imageUrl: e.target.value })} placeholder="https://..." />
-              </div>
-            </div>
-            <div>
-              <Label>Descripción *</Label>
-              <Textarea value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} rows={3} />
-            </div>
-            <div className="flex gap-6">
-              <div className="flex items-center gap-2">
-                <Switch checked={form.isActive} onCheckedChange={(v) => setForm({ ...form, isActive: v })} />
-                <Label>Activo</Label>
-              </div>
-              <div className="flex items-center gap-2">
-                <Switch checked={form.isFeatured} onCheckedChange={(v) => setForm({ ...form, isFeatured: v })} />
-                <Label>Destacado</Label>
-              </div>
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setDialogOpen(false)}>Cancelar</Button>
-            <Button onClick={handleSave} disabled={saving}>
-              {saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              {editing ? "Guardar cambios" : "Crear producto"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      {/* ═══ Diálogo de crear/editar producto ═══ */}
+      <ProductFormDialog
+        open={dialogOpen}
+        onOpenChange={setDialogOpen}
+        product={editingProduct}
+        categories={categories}
+        brands={brands}
+        onSaved={loadData}
+      />
+
+      {/* ═══ Confirmación de eliminación ═══ */}
+      <AlertDialog
+        open={!!deleteTarget}
+        onOpenChange={(open) => !open && setDeleteTarget(null)}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>¿Eliminar producto?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Se eliminará{" "}
+              <span className="font-medium text-gray-900">
+                &quot;{deleteTarget?.name}&quot;
+              </span>{" "}
+              y todas sus variantes. Esta acción se puede deshacer desde
+              la sección de productos eliminados.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleting}>
+              Cancelar
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDelete}
+              disabled={deleting}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {deleting && (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              )}
+              Eliminar
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }

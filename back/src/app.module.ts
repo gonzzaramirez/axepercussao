@@ -11,6 +11,7 @@ import { CategoriesModule } from './categories/categories.module';
 import { ProductsModule } from './products/products.module';
 import { OrdersModule } from './orders/orders.module';
 import { DiscountCodesModule } from './discount-codes/discount-codes.module';
+import { BrandsModule } from './brands/brands.module';
 import { JwtAuthGuard } from './auth/guards/jwt-auth.guard';
 import { RolesGuard } from './auth/guards/roles.guard';
 
@@ -30,6 +31,7 @@ import { RolesGuard } from './auth/guards/roles.guard';
     ProductsModule,
     OrdersModule,
     DiscountCodesModule,
+    BrandsModule,
   ],
   controllers: [AppController],
   providers: [

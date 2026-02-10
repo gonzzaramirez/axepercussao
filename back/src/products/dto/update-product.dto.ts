@@ -73,6 +73,10 @@ export class UpdateProductDto {
   @IsOptional()
   description?: string;
 
+  @IsString()
+  @IsOptional()
+  shortDescription?: string;
+
   @IsInt()
   @IsOptional()
   @Min(0)
@@ -86,6 +90,11 @@ export class UpdateProductDto {
   @IsString()
   @IsOptional()
   imageUrl?: string;
+
+  @IsArray()
+  @IsOptional()
+  @IsString({ each: true })
+  images?: string[];
 
   @IsBoolean()
   @IsOptional()
@@ -102,6 +111,10 @@ export class UpdateProductDto {
   @IsEnum(['INSTRUMENT', 'ACCESSORY'])
   @IsOptional()
   productType?: string;
+
+  @IsEnum(['AGUDO', 'MEDIO', 'GRAVE'])
+  @IsOptional()
+  instrumentRegister?: string;
 
   @IsBoolean()
   @IsOptional()

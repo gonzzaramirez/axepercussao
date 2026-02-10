@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
 import { Badge } from "@/components/ui/badge"
+import { Card, CardContent } from "@/components/ui/card"
 import {
   Dialog,
   DialogContent,
@@ -29,8 +30,10 @@ import {
 } from "@/lib/api/discount-code"
 import type { DiscountCode } from "@/types"
 import { Plus, Pencil, Trash2, Loader2 } from "lucide-react"
+import { useDashboardLayout } from "@/hooks/use-dashboard-layout"
 
 export default function DescuentosPage() {
+  const { viewMode } = useDashboardLayout()
   const [codes, setCodes] = useState<DiscountCode[]>([])
   const [loading, setLoading] = useState(true)
   const [dialogOpen, setDialogOpen] = useState(false)
@@ -109,12 +112,12 @@ export default function DescuentosPage() {
 
   return (
     <div>
-      <div className="mb-6 flex items-center justify-between">
+      <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Códigos de descuento</h1>
           <p className="text-sm text-gray-500">{codes.length} códigos</p>
         </div>
-        <Button onClick={openCreate}>
+        <Button onClick={openCreate} className="w-full sm:w-auto">
           <Plus className="mr-2 h-4 w-4" /> Nuevo código
         </Button>
       </div>
@@ -122,6 +125,62 @@ export default function DescuentosPage() {
       {loading ? (
         <div className="flex items-center justify-center py-12">
           <Loader2 className="h-8 w-8 animate-spin text-gray-400" />
+        </div>
+      ) : viewMode === "card" ? (
+        <div className="space-y-3">
+          {codes.map((code) => (
+            <Card key={code.id}>
+              <CardContent className="space-y-3 p-4">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <p className="font-mono font-bold text-gray-900">{code.code}</p>
+                    <p className="text-sm font-semibold text-green-700">-{code.discountPercent}%</p>
+                  </div>
+                  <Badge className={code.isActive ? "bg-green-100 text-green-800 border-transparent" : "bg-gray-100 text-gray-600 border-transparent"}>
+                    {code.isActive ? "Activo" : "Inactivo"}
+                  </Badge>
+                </div>
+
+                <div className="grid grid-cols-2 gap-2 rounded-lg bg-gray-50 p-3 text-sm">
+                  <div>
+                    <p className="text-xs text-gray-500">Usos</p>
+                    <p className="font-medium text-gray-900">
+                      {code.usageCount}{code.usageLimit ? ` / ${code.usageLimit}` : ""}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-gray-500">Vigencia</p>
+                    <p className="font-medium text-gray-900">
+                      {code.validFrom || code.validUntil
+                        ? `${code.validFrom ? new Date(code.validFrom).toLocaleDateString("es-AR") : "∞"} - ${code.validUntil ? new Date(code.validUntil).toLocaleDateString("es-AR") : "∞"}`
+                        : "Sin límite"}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex gap-2">
+                  <Button variant="secondary" className="flex-1" onClick={() => openEdit(code)}>
+                    <Pencil className="mr-2 h-4 w-4" />
+                    Editar
+                  </Button>
+                  <Button
+                    variant="outline"
+                    className="text-destructive hover:text-destructive"
+                    onClick={() => handleDelete(code.id)}
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+          {codes.length === 0 && (
+            <Card>
+              <CardContent className="py-8 text-center text-sm text-gray-500">
+                No hay códigos
+              </CardContent>
+            </Card>
+          )}
         </div>
       ) : (
         <div className="rounded-lg border border-gray-200 bg-white">
@@ -177,7 +236,7 @@ export default function DescuentosPage() {
       )}
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent>
+        <DialogContent className="w-[calc(100vw-1rem)] max-w-[calc(100vw-1rem)] sm:max-w-lg">
           <DialogHeader>
             <DialogTitle>{editing ? "Editar código" : "Nuevo código"}</DialogTitle>
           </DialogHeader>
@@ -219,9 +278,9 @@ export default function DescuentosPage() {
               <Label>Activo</Label>
             </div>
           </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setDialogOpen(false)}>Cancelar</Button>
-            <Button onClick={handleSave} disabled={saving || !form.code.trim()}>
+          <DialogFooter className="flex-col gap-2 sm:flex-row">
+            <Button variant="outline" onClick={() => setDialogOpen(false)} className="w-full sm:w-auto">Cancelar</Button>
+            <Button onClick={handleSave} disabled={saving || !form.code.trim()} className="w-full sm:w-auto">
               {saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               {editing ? "Guardar" : "Crear"}
             </Button>
