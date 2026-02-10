@@ -11,6 +11,7 @@ import { ProductFilters } from "@/components/product-filters"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import type { Product, Category } from "@/types"
+import { getAvailableVariants } from "@/types"
 
 export function ProductCatalog() {
   const [products, setProducts] = useState<Product[]>([])
@@ -46,7 +47,7 @@ export function ProductCatalog() {
 
       // Filtro por marca (buscar en variantes)
       if (selectedBrands.length > 0) {
-        const productBrandSlugs = (p.variants ?? [])
+        const productBrandSlugs = getAvailableVariants(p)
           .map((v) => v.brand?.slug)
           .filter(Boolean) as string[]
         if (!selectedBrands.some((b) => productBrandSlugs.includes(b))) return false

@@ -9,6 +9,7 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import type { Product } from "@/types"
 import { formatPrice } from "@/lib/data"
+import { getAvailableVariants } from "@/types"
 import { useCart } from "@/context/cart-context"
 
 interface ProductCardProps {
@@ -18,9 +19,10 @@ interface ProductCardProps {
 
 /** Obtiene las marcas únicas de las variantes */
 function getBrandNames(product: Product): string[] {
-  if (!product.variants?.length) return []
+  const variants = getAvailableVariants(product)
+  if (!variants.length) return []
   const names = new Set<string>()
-  for (const v of product.variants) {
+  for (const v of variants) {
     if (v.brand?.name) names.add(v.brand.name)
   }
   return Array.from(names)
@@ -28,14 +30,16 @@ function getBrandNames(product: Product): string[] {
 
 /** Si el producto tiene una sola variante sin opciones, la retorna para add rápido */
 function getSingleVariant(product: Product) {
-  if (product.variants?.length === 1) return product.variants[0]
+  const variants = getAvailableVariants(product)
+  if (variants.length === 1) return variants[0]
   return undefined
 }
 
 export function ProductCard({ product, index = 0 }: ProductCardProps) {
   const { addItem, setIsOpen } = useCart()
+  const availableVariants = getAvailableVariants(product)
   const brandNames = getBrandNames(product)
-  const hasMultipleOptions = (product.variants?.length ?? 0) > 1
+  const hasMultipleOptions = availableVariants.length > 1
   const singleVariant = getSingleVariant(product)
 
   const handleAddToCart = (e: React.MouseEvent) => {
@@ -52,9 +56,9 @@ export function ProductCard({ product, index = 0 }: ProductCardProps) {
 
   // Rango de precios si hay variantes con distintos precios
   const priceRange = (() => {
-    if (!product.variants?.length) return null
-    const prices = product.variants
-      .filter((v) => v.isActive && v.price != null)
+    if (!availableVariants.length) return null
+    const prices = availableVariants
+      .filter((v) => v.price != null)
       .map((v) => v.price!)
     if (prices.length < 2) return null
     const min = Math.min(...prices)
@@ -111,6 +115,13 @@ export function ProductCard({ product, index = 0 }: ProductCardProps) {
             <p className="mb-3 line-clamp-2 text-xs leading-relaxed text-muted-foreground">
               {product.shortDescription || product.description}
             </p>
+            {availableVariants.length > 0 && (
+              <p className="mb-3 text-xs font-medium text-muted-foreground">
+                {availableVariants.length} variante
+                {availableVariants.length !== 1 ? "s" : ""} disponible
+                {availableVariants.length !== 1 ? "s" : ""}
+              </p>
+            )}
             <div className="flex items-center justify-between">
               <div>
                 {priceRange ? (

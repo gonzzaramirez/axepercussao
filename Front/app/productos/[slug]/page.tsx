@@ -7,6 +7,7 @@ import { CartDrawer } from "@/components/cart-drawer"
 import { Footer } from "@/components/footer"
 import { ProductDetail } from "@/components/product-detail"
 import type { Product } from "@/types"
+import { getAvailableVariants } from "@/types"
 
 interface ProductPageProps {
   params: Promise<{ slug: string }>
@@ -39,7 +40,7 @@ export async function generateMetadata({
     return { title: "Producto no encontrado | Axé Percussão" }
   }
 
-  const brandNames = (product.variants ?? [])
+  const brandNames = getAvailableVariants(product)
     .map((v) => v.brand?.name)
     .filter(Boolean)
   const uniqueBrands = [...new Set(brandNames)]
@@ -71,7 +72,7 @@ export default async function ProductPage({ params }: ProductPageProps) {
     notFound()
   }
 
-  const brandNames = (product.variants ?? [])
+  const brandNames = getAvailableVariants(product)
     .map((v) => v.brand?.name)
     .filter(Boolean)
   const uniqueBrands = [...new Set(brandNames)]

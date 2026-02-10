@@ -9,6 +9,7 @@ function mapProduct(raw: any): Product {
     price: raw.price ?? 0,
     image: raw.imageUrl || "/placeholder.svg",
     featured: raw.isFeatured ?? false,
+    variants: raw.variants ?? [],
   }
 }
 
@@ -29,7 +30,10 @@ export async function getProducts(options?: {
   if (options?.categoryId) params.set("categoryId", options.categoryId.toString())
   if (options?.search) params.set("search", options.search)
   if (options?.register) params.set("register", options.register)
-  if (options?.admin) params.set("active", "false")
+  if (options?.admin) {
+    params.set("active", "false")
+    params.set("admin", "true")
+  }
 
   const fetchOptions: RequestInit = options?.admin
     ? { credentials: "include" }

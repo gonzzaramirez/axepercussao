@@ -234,3 +234,8 @@ export function getVariantDescription(variant: ProductVariant): string {
   if (variant.material) parts.push(variant.material)
   return parts.join(" · ")
 }
+
+/** Filtra variantes disponibles para catálogo público */
+export function getAvailableVariants(product: Product): ProductVariant[] {
+  return (product.variants ?? []).filter((variant) => variant.isActive !== false)
+}

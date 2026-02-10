@@ -8,7 +8,7 @@ import { ShoppingCart, Minus, Plus, ChevronRight, Check, Info } from "lucide-rea
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import type { Product, ProductVariant } from "@/types"
-import { getEffectivePrice, getVariantDescription } from "@/types"
+import { getEffectivePrice, getVariantDescription, getAvailableVariants } from "@/types"
 import { formatPrice, registerLabels } from "@/lib/data"
 import { useCart } from "@/context/cart-context"
 
@@ -21,7 +21,7 @@ export function ProductDetail({ product }: ProductDetailProps) {
   const [added, setAdded] = useState(false)
   const { addItem, setIsOpen } = useCart()
 
-  const variants = product.variants?.filter((v) => v.isActive) ?? []
+  const variants = getAvailableVariants(product)
   const hasVariants = variants.length > 0
 
   // Extraer opciones únicas de las variantes

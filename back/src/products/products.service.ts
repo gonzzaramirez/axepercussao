@@ -40,6 +40,7 @@ export class ProductsService {
       include: {
         category: true,
         variants: {
+          ...(query.admin === 'true' ? {} : { where: { isActive: true } }),
           include: { brand: true },
           orderBy: { createdAt: 'asc' },
         },
