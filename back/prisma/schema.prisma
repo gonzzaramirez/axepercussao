@@ -107,7 +107,7 @@ model Product {
   sku                       String              @unique // SKU base del producto
   description               String
   shortDescription          String?             @map("short_description") // Descripción corta para cards
-  price                     Int?                // Precio base en centavos (variantes pueden sobreescribirlo)
+  price                     Int?                // Precio base en pesos enteros (variantes pueden sobreescribirlo)
   stockQuantity             Int?                @default(0) @map("stock_quantity") // Stock cuando no tiene variantes
   imageUrl                  String?             @map("image_url") // Imagen principal
   images                    String[]            @default([]) // Galería de imágenes adicionales
@@ -153,10 +153,11 @@ model ProductVariant {
   productId     String   @map("product_id")
   brandId       Int?     @map("brand_id")
   sku           String   @unique
+  variantKey    String   @unique @map("variant_key")
   size          String?  // Medida: "12\"", "14\"", "18\"", "6.5\"", "40cm", etc.
   model         String?  // Modelo/variante: "2 bocas", "4 bocas", "con caja", "vazada", "5 gotas"
   material      String?  // Material: "plástico", "cuero", "bamboo", "acolchonada"
-  price         Int?     // Precio de esta variante (si difiere del producto base)
+  price         Int?     // Precio de esta variante en pesos enteros (si difiere del producto base)
   stockQuantity Int      @default(0) @map("stock_quantity")
   imageUrl      String?  @map("image_url")
   isActive      Boolean  @default(true) @map("is_active")
@@ -167,7 +168,6 @@ model ProductVariant {
   brand      Brand?      @relation(fields: [brandId], references: [id])
   orderItems OrderItem[]
 
-  @@unique([productId, brandId, size, model, material], name: "unique_variant_combination")
   @@map("product_variants")
 }
 

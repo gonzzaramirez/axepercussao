@@ -1,628 +1,603 @@
 import 'dotenv/config';
-import { PrismaClient } from '@prisma/client';
+import * as fs from 'node:fs';
+import * as path from 'node:path';
+import { PrismaClient, ProductType, InstrumentRegister } from '@prisma/client';
 import { PrismaPg } from '@prisma/adapter-pg';
+import * as crypto from 'node:crypto';
 
+// ─── CONFIGURACIÓN DB ───
 const connectionString = process.env.DATABASE_URL;
-if (!connectionString) {
-  throw new Error('DATABASE_URL no está definida. Verificá el archivo .env');
-}
+if (!connectionString) throw new Error('DATABASE_URL no definida.');
 const adapter = new PrismaPg({ connectionString });
 const prisma = new PrismaClient({ adapter });
 
-// ─── Helpers ─────────────────────────────────────────────
+// ─── CONFIGURACIÓN DE ARCHIVOS ───
+interface FileContext {
+  categorySlug: string;
+  isDynamic?: boolean;
+}
 
-function slug(text: string): string {
-  return text
+const FILES_CONFIG: Record<string, FileContext> = {
+  'Hoja de cálculo sin título - PRECIOS.csv': {
+    categorySlug: 'dynamic',
+    isDynamic: true,
+  },
+  'precios - PRECIOS.csv': {
+    categorySlug: 'dynamic',
+    isDynamic: true,
+  },
+};
+
+// ─── TIPOS INTERNOS ───
+
+interface MasterInfo {
+  name: string;
+  slug: string;
+  categorySlug: string;
+  productType: ProductType;
+  instrumentRegister: InstrumentRegister | null;
+  matchedTerm: string;
+}
+
+interface AccessoryPrefixEntry {
+  prefix: string;
+  masterName: string;
+  category: string;
+}
+
+interface InstrumentKeywordEntry {
+  keyword: string;
+  masterName: string;
+  category: string;
+  register: InstrumentRegister;
+}
+
+// ══════════════════════════════════════════════════════════════
+// MAPA DE AGRUPACIÓN EN DOS FASES (LA CLAVE DEL ÉXITO)
+// ══════════════════════════════════════════════════════════════
+//
+// FASE 1 — Prefijos de accesorios (evaluados con "startsWith")
+//   Resuelve: "Funda para surdo" → Funda (no Surdo)
+//             "Baqueta tamborim" → Baquetas (no Tamborim)
+//             "Parche Cuica"     → Parche (no Cuica)
+//             "Mazo para surdo"  → Mazos (no Surdo)
+//
+// FASE 2 — Keywords de instrumentos (evaluados con "includes")
+//   Solo se alcanza si el nombre NO empieza con un prefijo de accesorio.
+//
+// Regla de oro: prefijos LARGOS van primero para evitar que uno corto
+// matchee antes (ej: "par baqueta" antes de "baqueta").
+// ══════════════════════════════════════════════════════════════
+
+const ACCESSORY_PREFIXES: AccessoryPrefixEntry[] = [
+  // ── Fundas ──
+  { prefix: 'funda', masterName: 'Funda', category: 'fundas' },
+  { prefix: 'capa', masterName: 'Funda', category: 'fundas' },
+
+  // ── Baquetas y Palillos (prefijos más largos primero) ──
+  { prefix: 'par baqueta', masterName: 'Baquetas', category: 'baquetas-y-palillos' },
+  { prefix: 'par baquet', masterName: 'Baquetas', category: 'baquetas-y-palillos' }, // typo del CSV
+  { prefix: 'baqueta', masterName: 'Baquetas', category: 'baquetas-y-palillos' },
+  { prefix: 'palillo', masterName: 'Baquetas', category: 'baquetas-y-palillos' },
+  { prefix: 'paillo', masterName: 'Baquetas', category: 'baquetas-y-palillos' }, // typo del CSV
+  { prefix: 'bordao', masterName: 'Bordãos', category: 'baquetas-y-palillos' }, // normaliza "Bordãos"
+
+  // ── Mazos ──
+  { prefix: 'mazo', masterName: 'Mazos', category: 'baquetas-y-palillos' },
+
+  // ── Parches y Cueros ──
+  { prefix: 'parche', masterName: 'Parche', category: 'parches' },
+  { prefix: 'pele', masterName: 'Parche', category: 'parches' },
+  { prefix: 'cuero', masterName: 'Cuero', category: 'parches' },
+
+  // ── Correas ──
+  { prefix: 'correa', masterName: 'Correa', category: 'correas' },
+  { prefix: 'talabarte', masterName: 'Correa', category: 'correas' },
+
+  // ── Tensores, Llaves, Tuercas ──
+  { prefix: 'tensor', masterName: 'Tensores y Repuestos', category: 'tensores-y-llaves' },
+  { prefix: 'llave', masterName: 'Llaves de Afinación', category: 'tensores-y-llaves' },
+  { prefix: 'tuerca', masterName: 'Tensores y Repuestos', category: 'tensores-y-llaves' },
+
+  // ── Otros accesorios ──
+  { prefix: 'gambito', masterName: 'Gambito', category: 'baquetas-y-palillos' },
+  { prefix: 'gorgurao', masterName: 'Gorgurão', category: 'varios' },
+  { prefix: 'hule', masterName: 'Hule', category: 'varios' },
+];
+
+// Keywords más específicos DEBEN ir antes de los genéricos:
+//   "repicaixa" antes de "repique" y "caixa"
+//   "furacaixa" antes de "caixa"
+//   "timba" matchea tanto "Timba" como "Timbal"
+
+const INSTRUMENT_KEYWORDS: InstrumentKeywordEntry[] = [
+  // ── Graves ──
+  { keyword: 'surdo', masterName: 'Surdo', category: 'graves', register: 'GRAVE' as InstrumentRegister },
+  { keyword: 'rebolo', masterName: 'Rebolo', category: 'graves', register: 'GRAVE' as InstrumentRegister },
+  { keyword: 'tantan', masterName: 'Tantan', category: 'graves', register: 'GRAVE' as InstrumentRegister },
+  { keyword: 'bumbo', masterName: 'Bumbo', category: 'graves', register: 'GRAVE' as InstrumentRegister },
+  { keyword: 'cuica', masterName: 'Cuica', category: 'graves', register: 'GRAVE' as InstrumentRegister },
+
+  // ── Medios (específicos antes de genéricos) ──
+  { keyword: 'timba', masterName: 'Timbal', category: 'medios', register: 'MEDIO' as InstrumentRegister },
+  { keyword: 'repicaixa', masterName: 'Repique', category: 'agudos', register: 'AGUDO' as InstrumentRegister },
+  { keyword: 'furacaixa', masterName: 'Caixa', category: 'medios', register: 'MEDIO' as InstrumentRegister },
+  { keyword: 'caixa', masterName: 'Caixa', category: 'medios', register: 'MEDIO' as InstrumentRegister },
+  { keyword: 'pandeiro', masterName: 'Pandeiro', category: 'medios', register: 'MEDIO' as InstrumentRegister },
+
+  // ── Agudos ──
+  { keyword: 'repique', masterName: 'Repique', category: 'agudos', register: 'AGUDO' as InstrumentRegister },
+  { keyword: 'tamborim', masterName: 'Tamborim', category: 'agudos', register: 'AGUDO' as InstrumentRegister },
+  { keyword: 'agogo', masterName: 'Agogó', category: 'agudos', register: 'AGUDO' as InstrumentRegister },
+  { keyword: 'chocalho', masterName: 'Chocalho', category: 'agudos', register: 'AGUDO' as InstrumentRegister },
+  { keyword: 'rocar', masterName: 'Rocar', category: 'agudos', register: 'AGUDO' as InstrumentRegister },
+  { keyword: 'ganza', masterName: 'Ganza', category: 'agudos', register: 'AGUDO' as InstrumentRegister },
+  { keyword: 'reco', masterName: 'Reco-Reco', category: 'agudos', register: 'AGUDO' as InstrumentRegister },
+  { keyword: 'frigideira', masterName: 'Frigideira', category: 'agudos', register: 'AGUDO' as InstrumentRegister },
+];
+
+const BASE_CATEGORIES = [
+  { name: 'Agudos', slug: 'agudos', sortOrder: 1 },
+  { name: 'Medios', slug: 'medios', sortOrder: 2 },
+  { name: 'Graves', slug: 'graves', sortOrder: 3 },
+  { name: 'Parches', slug: 'parches', sortOrder: 4 },
+  { name: 'Baquetas y Palillos', slug: 'baquetas-y-palillos', sortOrder: 5 },
+  { name: 'Correas', slug: 'correas', sortOrder: 6 },
+  { name: 'Tensores y Llaves', slug: 'tensores-y-llaves', sortOrder: 7 },
+  { name: 'Fundas', slug: 'fundas', sortOrder: 8 },
+  { name: 'Varios', slug: 'varios', sortOrder: 9 },
+];
+
+const BRAND_ALIASES = [
+  { name: 'IVSOM', aliases: ['ivsom'] },
+  { name: 'Gope', aliases: ['gope'] },
+  { name: 'Contemporânea', aliases: ['contemporanea', 'contemporâneo', 'contemporaneo'] },
+  { name: 'Redenção', aliases: ['redencao', 'redençao'] },
+  { name: 'King', aliases: ['king'] },
+  { name: 'Izzo', aliases: ['izzo'] },
+  { name: 'Liverpool', aliases: ['liverpool'] },
+  { name: 'Japa', aliases: ['japa'] },
+  { name: 'Timbra', aliases: ['timbra'] },
+  { name: 'Macapas', aliases: ['macapas'] },
+  { name: 'Centent', aliases: ['centent'] },
+  { name: 'Combat', aliases: ['combat'] },
+  { name: 'Multisom', aliases: ['multisom'] },
+];
+
+// ─── UTILIDADES ───
+
+function normalizeText(value: string): string {
+  return value
     .toLowerCase()
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '')
+    .trim();
+}
+
+function slugify(text: string): string {
+  return normalizeText(text)
     .replace(/[^a-z0-9]+/g, '-')
     .replace(/(^-|-$)/g, '');
 }
 
-/** SKU único para producto (usa slug para garantizar unicidad) */
-function productSku(productName: string): string {
-  return slug(productName).toUpperCase().replace(/-/g, '-');
+function shortHash(text: string): string {
+  return crypto
+    .createHash('md5')
+    .update(text)
+    .digest('hex')
+    .substring(0, 6) // 6 hex chars = 16M posibilidades (vs 4 chars = 65K)
+    .toUpperCase();
 }
 
-/** SKU para variante (producto + marca + tamaño + modelo + material) */
-function variantSku(...parts: string[]): string {
-  return parts
-    .map((p) =>
-      p
-        .toUpperCase()
-        .normalize('NFD')
-        .replace(/[\u0300-\u036f]/g, '')
-        .replace(/[^A-Z0-9]+/g, '')
-        .slice(0, 6),
-    )
-    .filter(Boolean)
-    .join('-');
+function escapeRegex(s: string): string {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
-// ─── Datos del catálogo ──────────────────────────────────
-
-const BRANDS_DATA = [
-  { name: 'Gope', slug: 'gope' },
-  { name: 'IVSOM', slug: 'ivsom' },
-  { name: 'Contemporânea', slug: 'contemporanea' },
-  { name: 'King', slug: 'king' },
-  { name: 'Redenção', slug: 'redencao' },
-  { name: 'Izzo', slug: 'izzo' },
-];
-
-const CATEGORIES_DATA = [
-  // Instrumentos
-  { name: 'Agudos', slug: 'agudos', description: 'Instrumentos de registro agudo', sortOrder: 1 },
-  { name: 'Medios', slug: 'medios', description: 'Instrumentos de registro medio', sortOrder: 2 },
-  { name: 'Graves', slug: 'graves', description: 'Instrumentos de registro grave', sortOrder: 3 },
-  // Accesorios
-  { name: 'Parches', slug: 'parches', description: 'Parches de plástico, cuero y cuica', sortOrder: 4 },
-  { name: 'Baquetas y Palillos', slug: 'baquetas-y-palillos', description: 'Baquetas, palillos y mazos', sortOrder: 5 },
-  { name: 'Correas', slug: 'correas', description: 'Correas, gorgurão y bordão', sortOrder: 6 },
-  { name: 'Tensores y Llaves', slug: 'tensores-y-llaves', description: 'Tensores, varillas y llaves de afinación', sortOrder: 7 },
-  { name: 'Fundas', slug: 'fundas', description: 'Fundas para todos los instrumentos', sortOrder: 8 },
-];
-
-// Tipos de datos para el catálogo
-interface VariantDef {
-  brands: string[];
-  sizes?: string[];
-  models?: string[];
-  materials?: string[];
+function parsePrice(value: string): number | null {
+  if (!value) return null;
+  const raw = value.trim();
+  if (!raw || raw.includes('#VALUE!') || raw.toLowerCase().includes('desde'))
+    return null;
+  const clean = raw.replace(/[$,]/g, '');
+  const final = parseFloat(clean);
+  return Number.isFinite(final) && final > 0 ? Math.round(final) : null;
 }
 
-interface ProductDef {
-  name: string;
-  description: string;
-  shortDescription: string;
-  categorySlug: string;
-  productType: 'INSTRUMENT' | 'ACCESSORY';
-  instrumentRegister?: 'AGUDO' | 'MEDIO' | 'GRAVE';
-  isFeatured?: boolean;
-  variants: VariantDef;
-}
+/**
+ * Parser CSV correcto que maneja "" como comillas escapadas (estándar RFC 4180).
+ *
+ * El parser original destruía TODOS los caracteres ", lo que eliminaba
+ * las pulgadas de medidas como 12", 14", 22", etc.
+ *
+ * Este parser:
+ * - Campo sin comillas: lee hasta la siguiente coma
+ * - Campo con comillas: lee hasta la comilla de cierre, tratando "" como " literal
+ */
+function parseCsvLine(line: string): string[] {
+  const cols: string[] = [];
+  let current = '';
+  let inQuote = false;
+  let i = 0;
 
-const PRODUCTS: ProductDef[] = [
-  // ═══════════════════════════════════════════════════════
-  // INSTRUMENTOS — AGUDOS
-  // ═══════════════════════════════════════════════════════
-  {
-    name: 'Repique',
-    description:
-      'Repique de aluminio con herrajes cromados. Sonido brillante y penetrante, ideal para breaks, repicadas y telecoteco. El instrumento insignia de la línea de agudos.',
-    shortDescription: 'Repique de aluminio con herrajes cromados',
-    categorySlug: 'agudos',
-    productType: 'INSTRUMENT',
-    instrumentRegister: 'AGUDO',
-    isFeatured: true,
-    variants: {
-      brands: ['Gope', 'IVSOM', 'Izzo', 'Contemporânea', 'Redenção'],
-      sizes: ['12"', '14"', '16"', '18"'],
-    },
-  },
-  {
-    name: 'Tamborim',
-    description:
-      'Tamborim profesional con aro resistente y parche de plástico. Ataque definido y cortante para swings, telecoteco y carretilla. Esencial en toda batería de samba.',
-    shortDescription: 'Tamborim profesional de percusión brasileña',
-    categorySlug: 'agudos',
-    productType: 'INSTRUMENT',
-    instrumentRegister: 'AGUDO',
-    isFeatured: true,
-    variants: {
-      brands: ['Gope', 'IVSOM', 'Contemporânea', 'King', 'Redenção', 'Izzo'],
-    },
-  },
-  {
-    name: 'Agogó',
-    description:
-      'Agogó en aluminio cromado de alta calidad. Sonido metálico definido y potente, esencial para marcar el groove y la clave del samba.',
-    shortDescription: 'Agogó de aluminio cromado',
-    categorySlug: 'agudos',
-    productType: 'INSTRUMENT',
-    instrumentRegister: 'AGUDO',
-    isFeatured: true,
-    variants: {
-      brands: ['Gope', 'IVSOM', 'Izzo', 'Contemporânea', 'Redenção'],
-      models: ['2 bocas', '4 bocas'],
-    },
-  },
-  {
-    name: 'Chocalho',
-    description:
-      'Chocalho de platillos en aluminio pulido. Sonido metálico y cristalino que aporta brillo y textura rítmica al conjunto. Fundamental en el groove del samba.',
-    shortDescription: 'Chocalho de platillos en aluminio',
-    categorySlug: 'agudos',
-    productType: 'INSTRUMENT',
-    instrumentRegister: 'AGUDO',
-    variants: {
-      brands: ['Redenção', 'Izzo', 'IVSOM', 'King', 'Gope', 'Contemporânea'],
-    },
-  },
-  {
-    name: 'Frigideira',
-    description:
-      'Frigideira de metal con sonido agudo y penetrante. Instrumento versátil que marca los acentos rítmicos con precisión quirúrgica.',
-    shortDescription: 'Frigideira de metal para percusión',
-    categorySlug: 'agudos',
-    productType: 'INSTRUMENT',
-    instrumentRegister: 'AGUDO',
-    variants: {
-      brands: ['Redenção', 'IVSOM', 'King', 'Contemporânea'],
-      sizes: ['4,5"', '6"'],
-    },
-  },
+  while (i < line.length) {
+    const char = line[i];
 
-  // ═══════════════════════════════════════════════════════
-  // INSTRUMENTOS — MEDIOS
-  // ═══════════════════════════════════════════════════════
-  {
-    name: 'Caixa',
-    description:
-      'Caixa de guerra con casco de aluminio de alta resistencia. Respuesta seca y cortante que define la línea rítmica de la batería. Disponible con caja de resonancia o modelo vazado.',
-    shortDescription: 'Caixa de guerra en aluminio',
-    categorySlug: 'medios',
-    productType: 'INSTRUMENT',
-    instrumentRegister: 'MEDIO',
-    isFeatured: true,
-    variants: {
-      brands: ['Gope', 'IVSOM', 'Contemporânea', 'King', 'Redenção', 'Izzo'],
-      models: ['Con caja', 'Vazada'],
-    },
-  },
-  {
-    name: 'Timbal',
-    description:
-      'Timbal de percusión brasileña con casco de aluminio. Sonido cálido y envolvente para acompañamientos rítmicos y variaciones. Instrumento versátil para registro medio.',
-    shortDescription: 'Timbal de percusión brasileña',
-    categorySlug: 'medios',
-    productType: 'INSTRUMENT',
-    instrumentRegister: 'MEDIO',
-    variants: {
-      brands: ['Contemporânea', 'Izzo', 'Gope', 'IVSOM'],
-    },
-  },
-
-  // ═══════════════════════════════════════════════════════
-  // INSTRUMENTOS — GRAVES
-  // ═══════════════════════════════════════════════════════
-  {
-    name: 'Surdo',
-    description:
-      'Surdo con casco de aluminio pulido y afinación precisa. Tono profundo y envolvente que marca el pulso fundamental de la batería. El corazón rítmico de todo ensemble de samba.',
-    shortDescription: 'Surdo de aluminio, el corazón de la batería',
-    categorySlug: 'graves',
-    productType: 'INSTRUMENT',
-    instrumentRegister: 'GRAVE',
-    isFeatured: true,
-    variants: {
-      brands: ['Gope', 'IVSOM', 'Contemporânea', 'King', 'Redenção', 'Izzo'],
-      sizes: ['18"', '22"', '24"', '26"', '28"'],
-    },
-  },
-  {
-    name: 'Cuica',
-    description:
-      'Cuica tradicional brasileña con cuerpo de aluminio y parche de cuero. Produce el característico sonido vocal y expresivo que distingue al samba. Instrumento melódico-percusivo único.',
-    shortDescription: 'Cuica tradicional brasileña',
-    categorySlug: 'graves',
-    productType: 'INSTRUMENT',
-    instrumentRegister: 'GRAVE',
-    variants: {
-      brands: ['Redenção', 'Izzo', 'IVSOM', 'King', 'Gope', 'Contemporânea'],
-      sizes: ['6,5"', '8"', '9"', '9,5"', '10"'],
-    },
-  },
-
-  // ═══════════════════════════════════════════════════════
-  // ACCESORIOS — PARCHES
-  // ═══════════════════════════════════════════════════════
-  {
-    name: 'Parche de Plástico',
-    description:
-      'Parche de plástico de alta resistencia para instrumentos de percusión. Sonido definido y duradero, ideal para todo tipo de instrumentos. Disponible en todas las medidas estándar.',
-    shortDescription: 'Parche plástico resistente, todas las medidas',
-    categorySlug: 'parches',
-    productType: 'ACCESSORY',
-    variants: {
-      brands: ['Gope', 'IVSOM', 'Contemporânea', 'King', 'Redenção', 'Izzo'],
-      sizes: ['6"', '8"', '10"', '12"', '14"', '16"', '18"', '22"', '24"', '26"', '28"'],
-      materials: ['Plástico'],
-    },
-  },
-  {
-    name: 'Parche de Cuero',
-    description:
-      'Parche de cuero natural para surdos y tambores graves. Tono cálido y orgánico que aporta profundidad y cuerpo al sonido del instrumento.',
-    shortDescription: 'Parche de cuero natural para graves',
-    categorySlug: 'parches',
-    productType: 'ACCESSORY',
-    variants: {
-      brands: ['Gope', 'King', 'Izzo', 'IVSOM', 'Contemporânea'],
-      sizes: ['18"', '22"', '24"', '26"', '28"'],
-      materials: ['Cuero'],
-    },
-  },
-  {
-    name: 'Parche de Cuica',
-    description:
-      'Parche especial para cuica. Diseñado para producir el sonido vocal característico con máxima respuesta y durabilidad.',
-    shortDescription: 'Parche especial para cuica',
-    categorySlug: 'parches',
-    productType: 'ACCESSORY',
-    variants: {
-      brands: ['Izzo', 'Gope', 'IVSOM', 'Contemporânea'],
-      sizes: ['6"', '8"', '9"', '9,5"', '10"'],
-    },
-  },
-  {
-    name: 'Gambito de Bambú',
-    description:
-      'Gambito de bambú natural para cuica. Varilla interna que produce la fricción necesaria para el sonido característico del instrumento.',
-    shortDescription: 'Gambito de bambú para cuica',
-    categorySlug: 'parches',
-    productType: 'ACCESSORY',
-    variants: {
-      brands: ['Gope', 'IVSOM'],
-    },
-  },
-
-  // ═══════════════════════════════════════════════════════
-  // ACCESORIOS — BAQUETAS Y PALILLOS
-  // ═══════════════════════════════════════════════════════
-  {
-    name: 'Palillos',
-    description:
-      'Palillos de nailon profesionales para caixa y repique. Diseñados para máxima durabilidad y respuesta rápida en cada golpe. Esenciales para todo ritmista.',
-    shortDescription: 'Palillos de nailon para caixa y repique',
-    categorySlug: 'baquetas-y-palillos',
-    productType: 'ACCESSORY',
-    variants: {
-      brands: ['Gope', 'IVSOM', 'King', 'Redenção'],
-    },
-  },
-  {
-    name: 'Mazos de Marcación',
-    description:
-      'Mazos acolchados para marcación de surdo. Cabeza de fieltro que produce un golpe profundo y definido sin dañar el parche. Ideales para primera, segunda y tercera.',
-    shortDescription: 'Mazos acolchados para surdo',
-    categorySlug: 'baquetas-y-palillos',
-    productType: 'ACCESSORY',
-    variants: {
-      brands: ['Gope', 'IVSOM', 'King', 'Redenção', 'Izzo'],
-    },
-  },
-  {
-    name: 'Baquetas',
-    description:
-      'Baquetas profesionales de nailon multicabeza para tamborim y repique. Disponibles en diferentes configuraciones de gotas y largos para adaptarse a cada estilo de toque.',
-    shortDescription: 'Baquetas multicabeza para tamborim y repique',
-    categorySlug: 'baquetas-y-palillos',
-    productType: 'ACCESSORY',
-    variants: {
-      brands: ['IVSOM', 'Contemporânea', 'King', 'Redenção', 'Izzo'],
-      models: ['1 gota', '2 gotas', '3 gotas', '5 gotas', '7 gotas', 'Corta', '40cm'],
-    },
-  },
-  {
-    name: 'Baqueta de Frigideira',
-    description:
-      'Baqueta metálica diseñada específicamente para frigideira. Punta de metal que produce el sonido agudo y penetrante característico del instrumento.',
-    shortDescription: 'Baqueta metálica para frigideira',
-    categorySlug: 'baquetas-y-palillos',
-    productType: 'ACCESSORY',
-    variants: {
-      brands: ['Contemporânea', 'King', 'IVSOM'],
-    },
-  },
-
-  // ═══════════════════════════════════════════════════════
-  // ACCESORIOS — CORREAS
-  // ═══════════════════════════════════════════════════════
-  {
-    name: 'Correa',
-    description:
-      'Correa profesional con enganche seguro y distribución ergonómica del peso. Disponible en modelo simple y acolchonado para máximo confort durante horas de carnaval.',
-    shortDescription: 'Correa profesional para instrumentos',
-    categorySlug: 'correas',
-    productType: 'ACCESSORY',
-    variants: {
-      brands: ['Redenção', 'Gope', 'IVSOM', 'Contemporânea', 'King'],
-      models: ['Simple', 'Acolchonada'],
-    },
-  },
-  {
-    name: 'Gorgurão',
-    description:
-      'Gorgurão de tela resistente para sujeción de instrumentos. Material textil grueso que aporta firmeza y comodidad al sujetar el instrumento durante el desfile.',
-    shortDescription: 'Gorgurão de tela para instrumentos',
-    categorySlug: 'correas',
-    productType: 'ACCESSORY',
-    variants: {
-      brands: ['Gope', 'IVSOM', 'Redenção'],
-    },
-  },
-  {
-    name: 'Bordão',
-    description:
-      'Bordão (esteirinha) de acero inoxidable para caixa. Produce el característico zumbido de la caixa de guerra al vibrar contra el parche inferior.',
-    shortDescription: 'Bordão de acero para caixa',
-    categorySlug: 'correas',
-    productType: 'ACCESSORY',
-    variants: {
-      brands: ['Gope', 'IVSOM', 'Contemporânea', 'Redenção', 'Izzo'],
-    },
-  },
-
-  // ═══════════════════════════════════════════════════════
-  // ACCESORIOS — TENSORES Y LLAVES
-  // ═══════════════════════════════════════════════════════
-  {
-    name: 'Tensor Varilla',
-    description:
-      'Tensor de varilla roscada para afinación de instrumentos. Disponible en diferentes largos para adaptarse a surdos, repiques y caixas de cualquier medida.',
-    shortDescription: 'Tensor de varilla para afinación',
-    categorySlug: 'tensores-y-llaves',
-    productType: 'ACCESSORY',
-    variants: {
-      brands: ['IVSOM', 'Contemporânea', 'Redenção'],
-      sizes: ['13cm', '15cm', '20cm', '25cm', '30cm', '40cm', '50cm', '63,5cm'],
-    },
-  },
-  {
-    name: 'Llave de Afinación',
-    description:
-      'Llave de afinación universal para surdos, repiques y caixas. Herramienta indispensable para mantener la tensión correcta del parche y obtener el tono deseado.',
-    shortDescription: 'Llave de afinación universal',
-    categorySlug: 'tensores-y-llaves',
-    productType: 'ACCESSORY',
-    variants: {
-      brands: ['Gope', 'IVSOM', 'Contemporânea', 'Redenção', 'Izzo'],
-    },
-  },
-  {
-    name: 'Tensor Tamborim',
-    description:
-      'Tensor específico para tamborim. Diseñado para el sistema de afinación particular de este instrumento, permite ajustar la tensión con precisión.',
-    shortDescription: 'Tensor específico para tamborim',
-    categorySlug: 'tensores-y-llaves',
-    productType: 'ACCESSORY',
-    variants: {
-      brands: ['IVSOM', 'Contemporânea', 'Redenção'],
-    },
-  },
-
-  // ═══════════════════════════════════════════════════════
-  // ACCESORIOS — FUNDAS
-  // ═══════════════════════════════════════════════════════
-  {
-    name: 'Funda para Tamborim',
-    description: 'Funda acolchada para tamborim con cierre y correa de transporte. Protege tu instrumento durante el traslado.',
-    shortDescription: 'Funda acolchada para tamborim',
-    categorySlug: 'fundas',
-    productType: 'ACCESSORY',
-    variants: { brands: ['Gope', 'IVSOM', 'Contemporânea'] },
-  },
-  {
-    name: 'Funda para Repique',
-    description: 'Funda reforzada para repique con acolchado interno y correa ajustable. Disponible para todas las medidas de repique.',
-    shortDescription: 'Funda reforzada para repique',
-    categorySlug: 'fundas',
-    productType: 'ACCESSORY',
-    variants: { brands: ['Gope', 'IVSOM', 'Contemporânea'] },
-  },
-  {
-    name: 'Funda para Repique Mor',
-    description: 'Funda especial para repique mor (de mayor tamaño). Acolchado extra y costuras reforzadas para proteger instrumentos grandes.',
-    shortDescription: 'Funda para repique mor',
-    categorySlug: 'fundas',
-    productType: 'ACCESSORY',
-    variants: { brands: ['Gope', 'IVSOM'] },
-  },
-  {
-    name: 'Funda para Surdo',
-    description: 'Funda de gran capacidad para surdo con acolchado grueso y asas reforzadas. Protección total para el traslado del instrumento más grande de la batería.',
-    shortDescription: 'Funda acolchada para surdo',
-    categorySlug: 'fundas',
-    productType: 'ACCESSORY',
-    variants: { brands: ['Gope', 'IVSOM', 'Contemporânea'] },
-  },
-  {
-    name: 'Funda para Pandeiro',
-    description: 'Funda compacta para pandeiro con cierre y asa. Protege el instrumento de golpes y polvo.',
-    shortDescription: 'Funda compacta para pandeiro',
-    categorySlug: 'fundas',
-    productType: 'ACCESSORY',
-    variants: { brands: ['Gope', 'IVSOM'] },
-  },
-  {
-    name: 'Funda para Chocalho',
-    description: 'Funda tubular acolchada para chocalho. Diseño alargado que protege los platillos durante el transporte.',
-    shortDescription: 'Funda tubular para chocalho',
-    categorySlug: 'fundas',
-    productType: 'ACCESSORY',
-    variants: { brands: ['Gope', 'IVSOM'] },
-  },
-  {
-    name: 'Funda para Agogó',
-    description: 'Funda adaptada para agogó con compartimiento para las campanas. Protección y comodidad en el traslado.',
-    shortDescription: 'Funda para agogó',
-    categorySlug: 'fundas',
-    productType: 'ACCESSORY',
-    variants: { brands: ['Gope', 'IVSOM'] },
-  },
-  {
-    name: 'Funda para Timbal',
-    description: 'Funda reforzada para timbal con acolchado interno y correa de hombro. Protección ideal para ensayos y desfiles.',
-    shortDescription: 'Funda reforzada para timbal',
-    categorySlug: 'fundas',
-    productType: 'ACCESSORY',
-    variants: { brands: ['Gope', 'IVSOM', 'Contemporânea'] },
-  },
-  {
-    name: 'Funda para Cuica',
-    description: 'Funda especial para cuica con espacio para el gambito. Diseño que protege tanto el cuerpo como la varilla interna.',
-    shortDescription: 'Funda especial para cuica',
-    categorySlug: 'fundas',
-    productType: 'ACCESSORY',
-    variants: { brands: ['Gope', 'IVSOM'] },
-  },
-  {
-    name: 'Porta Palillos',
-    description: 'Estuche porta palillos con cierre y compartimientos. Mantiene las baquetas y palillos organizados y protegidos.',
-    shortDescription: 'Estuche porta palillos y baquetas',
-    categorySlug: 'fundas',
-    productType: 'ACCESSORY',
-    variants: { brands: ['Gope', 'IVSOM'] },
-  },
-];
-
-// ─── Seed principal ──────────────────────────────────────
-
-async function main() {
-  console.log('🌱 Iniciando seed del catálogo Axé Percussão...\n');
-
-  // 1. Crear marcas
-  console.log('📦 Creando marcas...');
-  const brandMap = new Map<string, number>();
-  for (const b of BRANDS_DATA) {
-    const brand = await prisma.brand.upsert({
-      where: { slug: b.slug },
-      update: { name: b.name },
-      create: { name: b.name, slug: b.slug, isActive: true },
-    });
-    brandMap.set(b.name, brand.id);
-    console.log(`   ✓ ${brand.name} (id: ${brand.id})`);
-  }
-
-  // 2. Crear categorías
-  console.log('\n📂 Creando categorías...');
-  const categoryMap = new Map<string, number>();
-  for (const c of CATEGORIES_DATA) {
-    const category = await prisma.category.upsert({
-      where: { slug: c.slug },
-      update: { name: c.name, description: c.description, sortOrder: c.sortOrder },
-      create: {
-        name: c.name,
-        slug: c.slug,
-        description: c.description,
-        sortOrder: c.sortOrder,
-        isActive: true,
-      },
-    });
-    categoryMap.set(c.slug, category.id);
-    console.log(`   ✓ ${category.name} (id: ${category.id})`);
-  }
-
-  // 3. Crear productos y variantes
-  console.log('\n🎵 Creando productos y variantes...');
-  let totalVariants = 0;
-
-  for (const p of PRODUCTS) {
-    const productSlug = slug(p.name);
-    const categoryId = categoryMap.get(p.categorySlug);
-
-    // Crear o actualizar producto
-    const product = await prisma.product.upsert({
-      where: { slug: productSlug },
-      update: {
-        name: p.name,
-        description: p.description,
-        shortDescription: p.shortDescription,
-        productType: p.productType,
-        instrumentRegister: p.instrumentRegister ?? null,
-        isFeatured: p.isFeatured ?? false,
-        categoryId,
-      },
-      create: {
-        name: p.name,
-        slug: productSlug,
-        sku: productSku(p.name),
-        description: p.description,
-        shortDescription: p.shortDescription,
-        productType: p.productType,
-        instrumentRegister: p.instrumentRegister ?? null,
-        isFeatured: p.isFeatured ?? false,
-        isActive: true,
-        categoryId,
-        price: 0, // Admin debe configurar precios
-      },
-    });
-
-    // Generar todas las combinaciones de variantes
-    const { brands, sizes, models, materials } = p.variants;
-    const sizeList = sizes?.length ? sizes : [null];
-    const modelList = models?.length ? models : [null];
-    const materialList = materials?.length ? materials : [null];
-
-    let variantCount = 0;
-
-    for (const brandName of brands) {
-      const brandId = brandMap.get(brandName);
-      if (!brandId) continue;
-
-      for (const size of sizeList) {
-        for (const model of modelList) {
-          for (const material of materialList) {
-            const skuParts = [p.name, brandName];
-            if (size) skuParts.push(size.replace(/"/g, ''));
-            if (model) skuParts.push(model);
-            if (material) skuParts.push(material);
-            const vSku = variantSku(...skuParts);
-
-            try {
-              await prisma.productVariant.upsert({
-                where: { sku: vSku },
-                update: {
-                  brandId,
-                  size,
-                  model,
-                  material,
-                  isActive: true,
-                },
-                create: {
-                  productId: product.id,
-                  brandId,
-                  sku: vSku,
-                  size,
-                  model,
-                  material,
-                  price: 0, // Admin debe configurar precios
-                  stockQuantity: 0,
-                  isActive: true,
-                },
-              });
-              variantCount++;
-            } catch (err: any) {
-              // Skip duplicados por constraint unique
-              if (!err.message?.includes('Unique constraint')) {
-                console.error(`   ⚠ Error en variante ${vSku}:`, err.message);
-              }
-            }
-          }
+    if (inQuote) {
+      if (char === '"') {
+        // ¿Comilla escapada ("") o cierre del campo?
+        if (i + 1 < line.length && line[i + 1] === '"') {
+          current += '"'; // Comilla literal → preserva pulgadas (ej: 12")
+          i += 2;
+          continue;
+        } else {
+          inQuote = false; // Fin del campo entrecomillado
+          i++;
+          continue;
         }
+      } else {
+        current += char;
+        i++;
+      }
+    } else {
+      if (char === '"') {
+        inQuote = true;
+        i++;
+      } else if (char === ',') {
+        cols.push(current.trim());
+        current = '';
+        i++;
+      } else {
+        current += char;
+        i++;
       }
     }
-
-    totalVariants += variantCount;
-    const typeIcon = p.productType === 'INSTRUMENT' ? '🥁' : '🔧';
-    console.log(`   ${typeIcon} ${product.name} — ${variantCount} variantes`);
   }
 
-  console.log(`\n✅ Seed completado exitosamente:`);
-  console.log(`   ${BRANDS_DATA.length} marcas`);
-  console.log(`   ${CATEGORIES_DATA.length} categorías`);
-  console.log(`   ${PRODUCTS.length} productos`);
-  console.log(`   ${totalVariants} variantes totales`);
+  cols.push(current.trim());
+  return cols;
+}
+
+/**
+ * Clasificación inteligente en dos fases:
+ *
+ * FASE 1: Si el nombre EMPIEZA con un prefijo de accesorio → ACCESSORY
+ *         (resuelve: "Funda para surdo" → Funda, no Surdo)
+ *
+ * FASE 2: Si CONTIENE un keyword de instrumento → INSTRUMENT
+ *         (keywords específicos antes de genéricos: "repicaixa" antes de "caixa")
+ *
+ * FASE 3: Fallback → ACCESSORY en categoría "varios"
+ */
+function getMasterProduct(originalName: string): MasterInfo {
+  const norm = normalizeText(originalName);
+
+  // FASE 1: Prefijos de accesorios (prioridad alta)
+  for (const acc of ACCESSORY_PREFIXES) {
+    if (norm.startsWith(acc.prefix)) {
+      return {
+        name: acc.masterName,
+        slug: slugify(acc.masterName),
+        categorySlug: acc.category,
+        productType: 'ACCESSORY' as ProductType,
+        instrumentRegister: null,
+        matchedTerm: acc.prefix,
+      };
+    }
+  }
+
+  // FASE 2: Keywords de instrumentos (por "contiene")
+  for (const inst of INSTRUMENT_KEYWORDS) {
+    if (norm.includes(inst.keyword)) {
+      return {
+        name: inst.masterName,
+        slug: slugify(inst.masterName),
+        categorySlug: inst.category,
+        productType: 'INSTRUMENT' as ProductType,
+        instrumentRegister: inst.register,
+        matchedTerm: inst.keyword,
+      };
+    }
+  }
+
+  // FASE 3: Fallback
+  const firstWord = originalName.replace(/\d+/g, '').split(' ')[0];
+  return {
+    name: firstWord || 'Varios',
+    slug: slugify(firstWord || 'varios'),
+    categorySlug: 'varios',
+    productType: 'ACCESSORY' as ProductType,
+    instrumentRegister: null,
+    matchedTerm: firstWord?.toLowerCase() || '',
+  };
+}
+
+function extractAttributes(originalName: string, masterInfo: MasterInfo) {
+  const norm = normalizeText(originalName);
+
+  // 1. Detectar marca
+  let brandName: string | undefined;
+  for (const b of BRAND_ALIASES) {
+    if (b.aliases.some((a) => norm.includes(a))) {
+      brandName = b.name;
+      break;
+    }
+  }
+
+  // 2. Detectar medida (ahora funciona con " preservado por parseCsvLine)
+  //    Grupo 1: N" con extensión opcional xNcm  (ej: 12", 18"x50cm, 9,5")
+  //    Grupo 2: NxN con unidad opcional          (ej: 20x12, 20x12", 10x17cm)
+  //    Grupo 3: N seguido de cm o mm             (ej: 51cm, 22cm)
+  const sizeRegex =
+    /\d{1,2}[.,]?\d?\s*"(?:\s*x\s*\d{1,3}\s*(?:cm)?)?|\d{1,2}\s?x\s?\d{1,3}\s*(?:"|cm)?|\d{1,3}\s*(?:cm|mm)/i;
+  const sizeMatch = originalName.match(sizeRegex);
+  const size = sizeMatch ? sizeMatch[0].trim() : undefined;
+
+  // 3. Detectar material (compuestos primero, específicos antes de genéricos)
+  let material: string | undefined;
+  if (norm.includes('cuero/nylon')) material = 'Cuero/Nylon';
+  else if (norm.includes('cuero/cuero')) material = 'Cuero/Cuero';
+  else if (norm.includes('cuero')) material = 'Cuero';
+  else if (norm.includes('nylon') || norm.includes('nyon')) material = 'Nylon'; // "nyon" = typo CSV
+  else if (norm.includes('plastico') || norm.includes('hidraulico'))
+    material = 'Plástico';
+  else if (norm.includes('madera')) material = 'Madera';
+  else if (norm.includes('duraluminio')) material = 'Duralumínio'; // antes de "aluminio"
+  else if (norm.includes('aluminio')) material = 'Aluminio';
+  else if (norm.includes('inox') || norm.includes('acero'))
+    material = 'Acero Inox';
+  else if (norm.includes('galvaniz')) material = 'Galvanizado';
+  else if (norm.includes('transparente')) material = 'Transparente';
+  else if (norm.includes('lechoso')) material = 'Lechoso';
+
+  // 4. Calcular modelo (residual descriptivo tras quitar marca, medida, nombre maestro)
+  let residual = originalName;
+
+  // Quitar marca
+  if (brandName) {
+    residual = residual.replace(new RegExp(escapeRegex(brandName), 'gi'), '');
+  }
+
+  // Quitar medida
+  if (size) {
+    residual = residual.replace(size, '');
+  }
+
+  // Quitar nombre maestro (con variaciones singular/plural)
+  const namesToRemove: string[] = [masterInfo.name];
+  if (masterInfo.name.endsWith('s')) {
+    namesToRemove.push(masterInfo.name.slice(0, -1)); // "Baquetas" → "Baqueta"
+  }
+  if (masterInfo.name.endsWith('es')) {
+    namesToRemove.push(masterInfo.name.slice(0, -2)); // "Tensores" → "Tensor"
+  }
+  for (const n of namesToRemove) {
+    if (n.length >= 3) {
+      try {
+        residual = residual.replace(new RegExp(escapeRegex(n), 'gi'), '');
+      } catch {
+        /* edge case de regex */
+      }
+    }
+  }
+
+  // Limpiar residual
+  residual = residual
+    .replace(/[""]/g, '') // Comillas sueltas
+    .replace(/\(\s*\)/g, '') // Paréntesis vacíos
+    .replace(/\s{2,}/g, ' ') // Espacios múltiples
+    .replace(/\s*[-–]\s*/g, ' ') // Guiones sueltos
+    .replace(/^[\s,.\-/()]+|[\s,.\-/()]+$/g, '') // Puntuación al inicio/final
+    .trim();
+
+  // Si el residual es muy corto o igual al material, ignorarlo
+  let model: string | undefined = residual.length > 2 ? residual : undefined;
+  if (model && material && normalizeText(model) === normalizeText(material))
+    model = undefined;
+
+  return { brandName, size, material, model };
+}
+
+// ─── MAIN ───
+
+async function main() {
+  console.log('🥁 Iniciando Seed Catálogo v2 (agrupación inteligente)...\n');
+
+  // ──────────────────────────────────────────────
+  // 1. Crear categorías y marcas
+  // ──────────────────────────────────────────────
+  console.log('🏗️  Estructurando Base de Datos...');
+  const categoryMap = new Map<string, number>();
+  for (const cat of BASE_CATEGORIES) {
+    const c = await prisma.category.upsert({
+      where: { slug: cat.slug },
+      update: {},
+      create: { name: cat.name, slug: cat.slug, sortOrder: cat.sortOrder },
+    });
+    categoryMap.set(cat.slug, c.id);
+  }
+  console.log(`   ✅ ${categoryMap.size} categorías listas.`);
+
+  const brandMap = new Map<string, number>();
+  for (const b of BRAND_ALIASES) {
+    const brand = await prisma.brand.upsert({
+      where: { slug: slugify(b.name) },
+      update: {},
+      create: { name: b.name, slug: slugify(b.name) },
+    });
+    brandMap.set(b.name, brand.id);
+  }
+  console.log(`   ✅ ${brandMap.size} marcas listas.`);
+
+  // ──────────────────────────────────────────────
+  // 2. Procesar archivos CSV
+  // ──────────────────────────────────────────────
+  const filesDir = path.resolve(__dirname, '../../');
+  const allFiles = fs
+    .readdirSync(filesDir)
+    .filter((f) => f.toLowerCase().endsWith('.csv'));
+
+  console.log(`\n📂 Archivos CSV encontrados: ${allFiles.length}`);
+
+  // Tracking de precios mínimos por producto padre
+  const productMinPrices = new Map<string, number>();
+
+  // Estadísticas
+  let totalVariants = 0;
+  let instrumentCount = 0;
+  let accessoryCount = 0;
+  let skippedCount = 0;
+
+  for (const filename of allFiles) {
+    const fileConfig = FILES_CONFIG[filename];
+    if (!fileConfig) {
+      console.log(`   ⚠️  Saltando (no configurado): ${filename}`);
+      continue;
+    }
+
+    console.log(`\n📄 Procesando: ${filename}`);
+    const filePath = path.join(filesDir, filename);
+    const content = fs.readFileSync(filePath, 'utf8');
+    const lines = content.split(/\r?\n/).slice(1); // Saltar header
+
+    let processedCount = 0;
+
+    for (const line of lines) {
+      // Parsear CSV correctamente (preserva " como pulgadas)
+      const cols = parseCsvLine(line);
+
+      const rawName = cols[0];
+      const rawPrice = cols[2]; // Columna C = "Precio de Venta"
+
+      if (!rawName || !rawPrice) continue;
+      const price = parsePrice(rawPrice);
+      if (!price) {
+        skippedCount++;
+        continue;
+      }
+
+      // 🧠 CLASIFICACIÓN INTELIGENTE (dos fases)
+      const masterInfo = getMasterProduct(rawName);
+      const attrs = extractAttributes(rawName, masterInfo);
+
+      // ── Producto padre ──
+      const productSlug = masterInfo.slug;
+      const categoryId =
+        categoryMap.get(masterInfo.categorySlug) || categoryMap.get('varios');
+
+      const desc = `Catálogo completo de ${masterInfo.name}. Seleccione marca y medida en las opciones.`;
+
+      const product = await prisma.product.upsert({
+        where: { slug: productSlug },
+        update: {
+          isActive: true,
+          productType: masterInfo.productType,
+          instrumentRegister: masterInfo.instrumentRegister,
+          categoryId: categoryId,
+          // Precio NO se actualiza aquí (se fija al mínimo al final)
+        },
+        create: {
+          name: masterInfo.name,
+          slug: productSlug,
+          sku: productSlug.toUpperCase(),
+          description: desc,
+          categoryId: categoryId,
+          productType: masterInfo.productType,
+          instrumentRegister: masterInfo.instrumentRegister,
+          price: price,
+          isActive: true,
+        },
+      });
+
+      // Track precio mínimo
+      const currentMin = productMinPrices.get(productSlug);
+      if (currentMin === undefined || price < currentMin) {
+        productMinPrices.set(productSlug, price);
+      }
+
+      // Stats
+      if (masterInfo.productType === ('INSTRUMENT' as ProductType))
+        instrumentCount++;
+      else accessoryCount++;
+
+      // ── Variante específica ──
+      const brandId = attrs.brandName
+        ? (brandMap.get(attrs.brandName) ?? null)
+        : null;
+
+      // Hash único para la variante (6 chars = 16M posibilidades)
+      const variantSignature = `${product.id}-${brandId}-${attrs.size}-${attrs.model}-${attrs.material}`;
+      const uniqueHash = shortHash(variantSignature);
+      const vKey = `${productSlug}-${uniqueHash}`;
+
+      // SKU legible: SURDO-IVS-18-A1B2C3
+      const skuParts = [
+        productSlug.substring(0, 10).toUpperCase(),
+        attrs.brandName
+          ? attrs.brandName.substring(0, 3).toUpperCase()
+          : 'GEN',
+        attrs.size
+          ? attrs.size.replace(/[^0-9]/g, '').substring(0, 4)
+          : 'U',
+        uniqueHash,
+      ];
+      const vSku = skuParts.join('-');
+
+      await prisma.productVariant.upsert({
+        where: { variantKey: vKey },
+        update: { price, isActive: true, sku: vSku },
+        create: {
+          productId: product.id,
+          brandId: brandId,
+          size: attrs.size,
+          material: attrs.material,
+          model: attrs.model,
+          sku: vSku,
+          variantKey: vKey,
+          price: price,
+          stockQuantity: 10,
+          isActive: true,
+        },
+      });
+
+      processedCount++;
+    }
+
+    totalVariants += processedCount;
+    console.log(`   ✅ ${processedCount} variantes importadas.`);
+  }
+
+  // ──────────────────────────────────────────────
+  // 3. Actualizar precios base al MÍNIMO de sus variantes
+  // ──────────────────────────────────────────────
+  console.log('\n📊 Fijando precios base (mínimo por producto)...');
+  for (const [pSlug, minPrice] of productMinPrices) {
+    await prisma.product.update({
+      where: { slug: pSlug },
+      data: { price: minPrice },
+    });
+  }
   console.log(
-    `\n⚠️  IMPORTANTE: Los precios están en $0. Configurá los precios desde el dashboard de administración.`,
+    `   ✅ ${productMinPrices.size} productos actualizados con precio mínimo.`,
   );
+
+  // ──────────────────────────────────────────────
+  // 4. Resumen final
+  // ──────────────────────────────────────────────
+  console.log('\n' + '═'.repeat(50));
+  console.log('📊 RESUMEN DEL SEED');
+  console.log('═'.repeat(50));
+  console.log(`   Productos padre:    ${productMinPrices.size}`);
+  console.log(`   Variantes totales:  ${totalVariants}`);
+  console.log(`   — Instrumentos:     ${instrumentCount}`);
+  console.log(`   — Accesorios:       ${accessoryCount}`);
+  console.log(`   Filas saltadas:     ${skippedCount}`);
+  console.log('═'.repeat(50));
+  console.log('\n✨ Seed Catálogo finalizado correctamente.');
 }
 
 main()
   .catch((e) => {
-    console.error('❌ Error en seed:', e);
+    console.error(e);
     process.exit(1);
   })
   .finally(async () => {

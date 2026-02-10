@@ -5,6 +5,32 @@ import { UpdateProductDto } from './dto/update-product.dto';
 import { BulkPriceUpdateDto } from './dto/bulk-price-update.dto';
 import { ProductType, InstrumentRegister } from '@prisma/client';
 
+function normalizeVariantToken(value?: string | null): string {
+  if (!value) return 'na';
+  return value
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/(^-|-$)/g, '');
+}
+
+function buildVariantKey(input: {
+  productId: string;
+  brandId?: number | null;
+  size?: string | null;
+  model?: string | null;
+  material?: string | null;
+}) {
+  return [
+    input.productId,
+    input.brandId ?? 'na',
+    normalizeVariantToken(input.size),
+    normalizeVariantToken(input.model),
+    normalizeVariantToken(input.material),
+  ].join('|');
+}
+
 @Injectable()
 export class ProductsService {
   constructor(private readonly prisma: PrismaService) {}
@@ -98,39 +124,54 @@ export class ProductsService {
       ...data
     } = dto;
 
-    return this.prisma.product.create({
-      data: {
-        ...data,
-        productType: (productType as ProductType) || 'INSTRUMENT',
-        instrumentRegister: instrumentRegister
-          ? (instrumentRegister as InstrumentRegister)
-          : null,
-        discountStartDate: discountStartDate
-          ? new Date(discountStartDate)
-          : undefined,
-        discountEndDate: discountEndDate
-          ? new Date(discountEndDate)
-          : undefined,
-        variants: variants
-          ? {
-              create: variants.map((v) => ({
-                sku: v.sku,
+    return this.prisma.$transaction(async (tx) => {
+      const product = await tx.product.create({
+        data: {
+          ...data,
+          productType: (productType as ProductType) || 'INSTRUMENT',
+          instrumentRegister: instrumentRegister
+            ? (instrumentRegister as InstrumentRegister)
+            : null,
+          discountStartDate: discountStartDate
+            ? new Date(discountStartDate)
+            : undefined,
+          discountEndDate: discountEndDate ? new Date(discountEndDate) : undefined,
+        },
+      });
+
+      if (variants && variants.length > 0) {
+        for (const v of variants) {
+          await tx.productVariant.create({
+            data: {
+              productId: product.id,
+              sku: v.sku,
+              brandId: v.brandId || null,
+              variantKey: buildVariantKey({
+                productId: product.id,
                 brandId: v.brandId || null,
                 size: v.size || null,
                 model: v.model || null,
                 material: v.material || null,
-                price: v.price ?? null,
-                stockQuantity: v.stockQuantity ?? 0,
-                imageUrl: v.imageUrl || null,
-                isActive: v.isActive ?? true,
-              })),
-            }
-          : undefined,
-      },
-      include: {
-        category: true,
-        variants: { include: { brand: true } },
-      },
+              }),
+              size: v.size || null,
+              model: v.model || null,
+              material: v.material || null,
+              price: v.price ?? null,
+              stockQuantity: v.stockQuantity ?? 0,
+              imageUrl: v.imageUrl || null,
+              isActive: v.isActive ?? true,
+            },
+          });
+        }
+      }
+
+      return tx.product.findUnique({
+        where: { id: product.id },
+        include: {
+          category: true,
+          variants: { include: { brand: true }, orderBy: { createdAt: 'asc' } },
+        },
+      });
     });
   }
 
@@ -206,9 +247,18 @@ export class ProductsService {
 
         // Procesar variantes enviadas
         for (const v of variants) {
+          const variantKey = buildVariantKey({
+            productId: id,
+            brandId: v.brandId || null,
+            size: v.size || null,
+            model: v.model || null,
+            material: v.material || null,
+          });
+
           const variantData = {
             sku: v.sku,
             brandId: v.brandId || null,
+            variantKey,
             size: v.size || null,
             model: v.model || null,
             material: v.material || null,
