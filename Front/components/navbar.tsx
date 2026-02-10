@@ -7,7 +7,7 @@ import { motion, AnimatePresence } from "framer-motion"
 import { ShoppingCart, Menu, X } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
-import { useCartStore } from "@/store/cart"
+import { useCart } from "@/context/cart-context"
 
 const navLinks = [
   { href: "/#destacados", label: "Destacados" },
@@ -27,8 +27,7 @@ export function Navbar() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const [isMounted, setIsMounted] = useState(false)
   const pathname = usePathname()
-  const totalItems = useCartStore((s) => s.totalItems())
-  const setCartOpen = useCartStore((s) => s.setIsOpen)
+  const { totalItems, setIsOpen: setCartOpen } = useCart()
 
   useEffect(() => {
     setIsMounted(true)

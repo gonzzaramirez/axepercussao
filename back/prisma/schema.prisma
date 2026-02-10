@@ -1,0 +1,274 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ─── Enums ───────────────────────────────────────────────
+
+// Tipo principal de producto
+enum ProductType {
+  INSTRUMENT // Instrumentos de percusión (Repique, Surdo, Tamborim, etc.)
+  ACCESSORY  // Accesorios (Parches, Baquetas, Correas, Tensores, Fundas, etc.)
+  @@map("product_type")
+}
+
+// Registro sonoro del instrumento (solo aplica a INSTRUMENT)
+enum InstrumentRegister {
+  AGUDO // Repique, Tamborim, Agogó, Chocalho, Frigideira
+  MEDIO // Caixa, Timbal
+  GRAVE // Surdo, Cuica
+  @@map("instrument_register")
+}
+
+enum OrderStatus {
+  PENDING   // Pedido recibido, esperando confirmación de pago
+  CONFIRMED // Pago confirmado por admin
+  SHIPPED   // Enviado con código de seguimiento
+  CANCELLED // Cancelado
+  @@map("order_status")
+}
+
+enum Role {
+  ADMIN
+  CUSTOMER
+  @@map("user_role")
+}
+
+// ─── Users ───────────────────────────────────────────────
+
+model User {
+  id           String   @id @default(uuid())
+  email        String   @unique
+  passwordHash String   @map("password_hash")
+  firstName    String   @map("first_name")
+  lastName     String   @map("last_name")
+  phone        String?
+  role         Role     @default(CUSTOMER)
+  isActive     Boolean  @default(true) @map("is_active")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  @@map("users")
+}
+
+// ─── Brands (Marcas fabricantes) ─────────────────────────
+// Gope, IVSOM, Izzo, Contemporánea, King, Redenção, etc.
+
+model Brand {
+  id        Int      @id @default(autoincrement())
+  name      String   @unique // "Gope", "IVSOM", "Izzo", "Contemporánea", "King", "Redenção"
+  slug      String   @unique // "gope", "ivsom", "izzo", "contemporanea", "king", "redencao"
+  logoUrl   String?  @map("logo_url")
+  website   String?  // URL del sitio web del fabricante
+  isActive  Boolean  @default(true) @map("is_active")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  variants ProductVariant[]
+
+  @@map("brands")
+}
+
+// ─── Categories (Categorías de producto) ─────────────────
+// Ejemplos:
+//   Instrumentos → Agudos (Repique, Tamborim...), Medios (Caixa...), Graves (Surdo...)
+//   Accesorios   → Parches, Baquetas y Palillos, Correas, Tensores y Llaves, Fundas
+
+model Category {
+  id          Int       @id @default(autoincrement())
+  name        String    @unique // "Repiques", "Surdos", "Parches", "Baquetas y Palillos"
+  slug        String    @unique // "repiques", "surdos", "parches", "baquetas-y-palillos"
+  description String?
+  imageUrl    String?   @map("image_url")
+  sortOrder   Int       @default(0) @map("sort_order") // Orden de aparición en el catálogo
+  isActive    Boolean   @default(true) @map("is_active")
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+  deletedAt   DateTime? @map("deleted_at")
+
+  products Product[]
+
+  @@map("categories")
+}
+
+// ─── Products (Productos base) ───────────────────────────
+// Cada producto representa un tipo de instrumento o accesorio.
+// Ej: "Repique", "Surdo", "Parche de Plástico", "Funda para Surdo"
+// Las combinaciones específicas (marca + medida + modelo) se manejan en ProductVariant.
+
+model Product {
+  id                        String              @id @default(uuid())
+  categoryId                Int?                @map("category_id")
+  name                      String              // "Repique", "Surdo", "Parche de Plástico"
+  slug                      String              @unique
+  sku                       String              @unique // SKU base del producto
+  description               String
+  shortDescription          String?             @map("short_description") // Descripción corta para cards
+  price                     Int?                // Precio base en centavos (variantes pueden sobreescribirlo)
+  stockQuantity             Int?                @default(0) @map("stock_quantity") // Stock cuando no tiene variantes
+  imageUrl                  String?             @map("image_url") // Imagen principal
+  images                    String[]            @default([]) // Galería de imágenes adicionales
+  isActive                  Boolean             @default(true) @map("is_active")
+  isFeatured                Boolean             @default(false) @map("is_featured")
+  productType               ProductType         @default(INSTRUMENT) @map("product_type")
+  instrumentRegister        InstrumentRegister? @map("instrument_register") // Solo para INSTRUMENT: AGUDO, MEDIO, GRAVE
+  requiresAvailabilityCheck Boolean             @default(false) @map("requires_availability_check")
+
+  // Descuentos por producto
+  discountPercent   Int?      @map("discount_percent")
+  discountStartDate DateTime? @map("discount_start_date")
+  discountEndDate   DateTime? @map("discount_end_date")
+
+  // Descuento por cantidad (ej: "comprá 2+ y llevá 10% off")
+  minQuantityDiscount     Int? @map("min_quantity_discount")
+  quantityDiscountPercent Int? @map("quantity_discount_percent")
+
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  deletedAt DateTime? @map("deleted_at")
+
+  category     Category?        @relation(fields: [categoryId], references: [id])
+  variants     ProductVariant[]
+  orderItems   OrderItem[]
+  priceHistory PriceHistory[]
+
+  @@map("products")
+}
+
+// ─── Product Variants (Variantes de producto) ────────────
+// Cada variante representa una combinación comprable específica.
+// Ej: "Repique Gope 14 pulgadas" o "Parche de Plástico IVSOM 18 pulgadas"
+//
+// Campos clave:
+//   brand    → Marca fabricante (Gope, IVSOM, etc.)
+//   size     → Medida en pulgadas o cm ("12\"", "14\"", "6.5\"", "40cm")
+//   model    → Sub-variante del producto ("2 bocas", "4 bocas", "con caja", "vazada", "5 gotas", "corta")
+//   material → Material cuando aplica ("plástico", "cuero", "bamboo", "acolchonada")
+
+model ProductVariant {
+  id            String   @id @default(uuid())
+  productId     String   @map("product_id")
+  brandId       Int?     @map("brand_id")
+  sku           String   @unique
+  size          String?  // Medida: "12\"", "14\"", "18\"", "6.5\"", "40cm", etc.
+  model         String?  // Modelo/variante: "2 bocas", "4 bocas", "con caja", "vazada", "5 gotas"
+  material      String?  // Material: "plástico", "cuero", "bamboo", "acolchonada"
+  price         Int?     // Precio de esta variante (si difiere del producto base)
+  stockQuantity Int      @default(0) @map("stock_quantity")
+  imageUrl      String?  @map("image_url")
+  isActive      Boolean  @default(true) @map("is_active")
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  product    Product     @relation(fields: [productId], references: [id], onDelete: Cascade)
+  brand      Brand?      @relation(fields: [brandId], references: [id])
+  orderItems OrderItem[]
+
+  @@unique([productId, brandId, size, model, material], name: "unique_variant_combination")
+  @@map("product_variants")
+}
+
+// ─── Guest Customers ─────────────────────────────────────
+
+model GuestCustomer {
+  id        String   @id @default(uuid())
+  firstName String   @map("first_name")
+  lastName  String   @map("last_name")
+  email     String
+  phone     String
+  dni       String
+  street    String
+  apartment String?
+  city      String
+  province  String
+  createdAt DateTime @default(now()) @map("created_at")
+
+  orders Order[]
+
+  @@map("guest_customers")
+}
+
+// ─── Orders ──────────────────────────────────────────────
+
+model Order {
+  id              String      @id @default(uuid())
+  guestCustomerId String?     @map("guest_customer_id")
+  status          OrderStatus @default(PENDING)
+  totalAmount     Int         @map("total_amount")
+  customerNotes   String?     @map("customer_notes")
+  trackingCode    String?     @map("tracking_code")
+  courierName     String?     @map("courier_name")
+  adminNotes      String?     @map("admin_notes")
+  discountCode    String?     @map("discount_code")
+  discountPercent Int?        @map("discount_percent")
+  createdAt       DateTime    @default(now()) @map("created_at")
+  updatedAt       DateTime    @updatedAt @map("updated_at")
+  confirmedAt     DateTime?   @map("confirmed_at")
+  shippedAt       DateTime?   @map("shipped_at")
+
+  guestCustomer GuestCustomer? @relation(fields: [guestCustomerId], references: [id])
+  items         OrderItem[]
+
+  @@map("orders")
+}
+
+// ─── Order Items ─────────────────────────────────────────
+// Datos "congelados" al momento de la compra para que no cambien
+// si el producto se modifica después.
+
+model OrderItem {
+  id          String  @id @default(uuid())
+  orderId     String  @map("order_id")
+  productId   String  @map("product_id")
+  variantId   String? @map("variant_id")
+  // Datos congelados al momento de la compra
+  productName String  @map("product_name")  // "Repique"
+  brandName   String? @map("brand_name")    // "Gope"
+  variantDesc String? @map("variant_desc")  // "14\" - 2 bocas" (descripción legible de la variante)
+  quantity    Int
+  unitPrice   Int     @map("unit_price")
+
+  order   Order           @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  product Product         @relation(fields: [productId], references: [id])
+  variant ProductVariant? @relation(fields: [variantId], references: [id])
+
+  @@map("order_items")
+}
+
+// ─── Discount Codes ──────────────────────────────────────
+
+model DiscountCode {
+  id              String    @id @default(uuid())
+  code            String    @unique
+  description     String?
+  discountPercent Int       @map("discount_percent")
+  isActive        Boolean   @default(true) @map("is_active")
+  validFrom       DateTime? @map("valid_from")
+  validUntil      DateTime? @map("valid_until")
+  usageLimit      Int?      @map("usage_limit")
+  usageCount      Int       @default(0) @map("usage_count")
+  minOrderAmount  Int?      @map("min_order_amount")
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+
+  @@map("discount_codes")
+}
+
+// ─── Price History ───────────────────────────────────────
+
+model PriceHistory {
+  id            String   @id @default(uuid())
+  productId     String   @map("product_id")
+  oldPrice      Int      @map("old_price")
+  newPrice      Int      @map("new_price")
+  changePercent Float    @map("change_percent")
+  reason        String?
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  product Product @relation(fields: [productId], references: [id])
+
+  @@map("price_history")
+}

@@ -12,14 +12,13 @@ import {
 import { Button } from "@/components/ui/button"
 import { Separator } from "@/components/ui/separator"
 import { ScrollArea } from "@/components/ui/scroll-area"
-import { useCartStore } from "@/store/cart"
+import { useCart } from "@/context/cart-context"
 import { formatPrice } from "@/lib/data"
+import { getEffectivePrice, getVariantDescription } from "@/types"
 
 export function CartDrawer() {
   const { items, isOpen, setIsOpen, updateQuantity, removeItem, totalPrice, buildWhatsAppUrl } =
-    useCartStore()
-
-  const total = totalPrice()
+    useCart()
 
   return (
     <Sheet open={isOpen} onOpenChange={setIsOpen}>
@@ -51,68 +50,90 @@ export function CartDrawer() {
           <>
             <ScrollArea className="-mx-6 flex-1 px-6">
               <div className="flex flex-col gap-3 py-4">
-                {items.map((item) => (
-                  <div
-                    key={item.product.id}
-                    className="flex gap-4 rounded-xl border border-gray-200 bg-gray-50 p-3"
-                  >
-                    <div className="relative h-20 w-20 shrink-0 overflow-hidden rounded-lg bg-gray-100">
-                      <Image
-                        src={item.product.image || "/placeholder.svg"}
-                        alt={item.product.name}
-                        fill
-                        className="object-cover"
-                      />
-                    </div>
-                    <div className="flex min-w-0 flex-1 flex-col justify-between gap-2">
-                      <div>
-                        <p className="text-xs font-bold uppercase tracking-wider text-carnival-accent">
-                          {item.product.brand}
-                        </p>
-                        <p className="truncate text-sm font-semibold text-foreground">
-                          {item.product.name}
-                        </p>
+                {items.map((item) => {
+                  const price = getEffectivePrice(item.product, item.selectedVariant)
+                  const variantDesc = item.selectedVariant
+                    ? getVariantDescription(item.selectedVariant)
+                    : null
+                  const itemKey = item.selectedVariant
+                    ? `${item.product.id}-${item.selectedVariant.id}`
+                    : item.product.id
+                  const itemImage = item.selectedVariant?.imageUrl || item.product.image || "/placeholder.svg"
+
+                  return (
+                    <div
+                      key={itemKey}
+                      className="flex gap-4 rounded-xl border border-gray-200 bg-gray-50 p-3"
+                    >
+                      <div className="relative h-20 w-20 shrink-0 overflow-hidden rounded-lg bg-gray-100">
+                        <Image
+                          src={itemImage}
+                          alt={item.product.name}
+                          fill
+                          className="object-cover"
+                        />
                       </div>
-                      <div className="flex flex-wrap items-center justify-between gap-2">
-                        <div className="flex items-center gap-1">
-                          <Button
-                            onClick={() => updateQuantity(item.product.id, item.quantity - 1)}
-                            variant="outline"
-                            size="icon"
-                            className="h-8 w-8 rounded-lg border-gray-200 bg-white hover:bg-gray-100"
-                            aria-label="Reducir cantidad"
-                          >
-                            <Minus className="h-3 w-3" />
-                          </Button>
-                          <span className="min-w-8 text-center text-sm font-bold text-foreground">
-                            {item.quantity}
-                          </span>
-                          <Button
-                            onClick={() => updateQuantity(item.product.id, item.quantity + 1)}
-                            variant="outline"
-                            size="icon"
-                            className="h-8 w-8 rounded-lg border-gray-200 bg-white hover:bg-gray-100"
-                            aria-label="Aumentar cantidad"
-                          >
-                            <Plus className="h-3 w-3" />
-                          </Button>
-                          <Button
-                            onClick={() => removeItem(item.product.id)}
-                            variant="ghost"
-                            size="icon"
-                            className="h-8 w-8 rounded-lg text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
-                            aria-label={`Eliminar ${item.product.name}`}
-                          >
-                            <Trash2 className="h-3 w-3" />
-                          </Button>
+                      <div className="flex min-w-0 flex-1 flex-col justify-between gap-2">
+                        <div>
+                          {item.selectedVariant?.brand?.name && (
+                            <p className="text-xs font-bold uppercase tracking-wider text-carnival-accent">
+                              {item.selectedVariant.brand.name}
+                            </p>
+                          )}
+                          <p className="truncate text-sm font-semibold text-foreground">
+                            {item.product.name}
+                          </p>
+                          {variantDesc && (
+                            <p className="truncate text-xs text-muted-foreground">
+                              {variantDesc}
+                            </p>
+                          )}
                         </div>
-                        <p className="text-sm font-bold text-carnival-primary">
-                          {formatPrice(item.product.price * item.quantity)}
-                        </p>
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <div className="flex items-center gap-1">
+                            <Button
+                              onClick={() =>
+                                updateQuantity(item.product.id, item.quantity - 1, item.selectedVariant?.id)
+                              }
+                              variant="outline"
+                              size="icon"
+                              className="h-8 w-8 rounded-lg border-gray-200 bg-white hover:bg-gray-100"
+                              aria-label="Reducir cantidad"
+                            >
+                              <Minus className="h-3 w-3" />
+                            </Button>
+                            <span className="min-w-8 text-center text-sm font-bold text-foreground">
+                              {item.quantity}
+                            </span>
+                            <Button
+                              onClick={() =>
+                                updateQuantity(item.product.id, item.quantity + 1, item.selectedVariant?.id)
+                              }
+                              variant="outline"
+                              size="icon"
+                              className="h-8 w-8 rounded-lg border-gray-200 bg-white hover:bg-gray-100"
+                              aria-label="Aumentar cantidad"
+                            >
+                              <Plus className="h-3 w-3" />
+                            </Button>
+                            <Button
+                              onClick={() => removeItem(item.product.id, item.selectedVariant?.id)}
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8 rounded-lg text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
+                              aria-label={`Eliminar ${item.product.name}`}
+                            >
+                              <Trash2 className="h-3 w-3" />
+                            </Button>
+                          </div>
+                          <p className="text-sm font-bold text-carnival-primary">
+                            {formatPrice(price * item.quantity)}
+                          </p>
+                        </div>
                       </div>
                     </div>
-                  </div>
-                ))}
+                  )
+                })}
               </div>
             </ScrollArea>
 
@@ -120,7 +141,7 @@ export function CartDrawer() {
               <div className="mb-4 flex items-center justify-between">
                 <span className="text-sm font-semibold text-foreground">Total</span>
                 <span className="font-display text-2xl text-carnival-primary sm:text-3xl">
-                  {formatPrice(total)}
+                  {formatPrice(totalPrice)}
                 </span>
               </div>
               <Button

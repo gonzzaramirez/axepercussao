@@ -9,25 +9,37 @@ import {
 import { Checkbox } from "@/components/ui/checkbox"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
-import { categories, brands } from "@/lib/data"
-import type { Category, Brand } from "@/types"
+import { categoryFilters, brandFilters } from "@/lib/data"
+import type { Category } from "@/types"
 
 interface ProductFiltersProps {
-  selectedCategories: Category[]
-  selectedBrands: Brand[]
-  onCategoryChange: (category: Category) => void
-  onBrandChange: (brand: Brand) => void
+  selectedCategories: string[]
+  selectedBrands: string[]
+  selectedType: string | null
+  onCategoryChange: (slug: string) => void
+  onBrandChange: (slug: string) => void
+  onTypeChange: (type: string | null) => void
   onClearAll: () => void
+  /** Categorías desde API (opcional). Si no se pasa, usa las estáticas de lib/data */
+  categories?: Category[]
 }
 
 export function ProductFilters({
   selectedCategories,
   selectedBrands,
+  selectedType,
   onCategoryChange,
   onBrandChange,
+  onTypeChange,
   onClearAll,
+  categories,
 }: ProductFiltersProps) {
-  const hasFilters = selectedCategories.length > 0 || selectedBrands.length > 0
+  const hasFilters =
+    selectedCategories.length > 0 || selectedBrands.length > 0 || selectedType !== null
+
+  const categoryOptions = categories?.length
+    ? categories.map((c) => ({ value: c.slug, label: c.name }))
+    : categoryFilters
 
   return (
     <Card className="border-border bg-card">
@@ -48,14 +60,43 @@ export function ProductFilters({
           )}
         </div>
 
-        <Accordion type="multiple" defaultValue={["category", "brand"]}>
-          <AccordionItem value="category" className="border-border">
+        <Accordion type="multiple" defaultValue={["type", "category", "brand"]}>
+          {/* Tipo de producto */}
+          <AccordionItem value="type" className="border-border">
             <AccordionTrigger className="text-sm font-semibold text-foreground hover:no-underline">
-              Categoria
+              Tipo
             </AccordionTrigger>
             <AccordionContent>
               <div className="flex flex-col gap-3">
-                {categories.map((cat) => (
+                {[
+                  { value: "INSTRUMENT", label: "Instrumentos" },
+                  { value: "ACCESSORY", label: "Accesorios" },
+                ].map((type) => (
+                  <label
+                    key={type.value}
+                    className="flex cursor-pointer items-center gap-3 text-sm text-muted-foreground transition-colors hover:text-foreground"
+                  >
+                    <Checkbox
+                      checked={selectedType === type.value}
+                      onCheckedChange={() =>
+                        onTypeChange(selectedType === type.value ? null : type.value)
+                      }
+                    />
+                    {type.label}
+                  </label>
+                ))}
+              </div>
+            </AccordionContent>
+          </AccordionItem>
+
+          {/* Categoría */}
+          <AccordionItem value="category" className="border-border">
+            <AccordionTrigger className="text-sm font-semibold text-foreground hover:no-underline">
+              Categoría
+            </AccordionTrigger>
+            <AccordionContent>
+              <div className="flex flex-col gap-3">
+                {categoryOptions.map((cat) => (
                   <label
                     key={cat.value}
                     className="flex cursor-pointer items-center gap-3 text-sm text-muted-foreground transition-colors hover:text-foreground"
@@ -71,13 +112,14 @@ export function ProductFilters({
             </AccordionContent>
           </AccordionItem>
 
+          {/* Marca */}
           <AccordionItem value="brand" className="border-border">
             <AccordionTrigger className="text-sm font-semibold text-foreground hover:no-underline">
               Marca
             </AccordionTrigger>
             <AccordionContent>
               <div className="flex flex-col gap-3">
-                {brands.map((brand) => (
+                {brandFilters.map((brand) => (
                   <label
                     key={brand.value}
                     className="flex cursor-pointer items-center gap-3 text-sm text-muted-foreground transition-colors hover:text-foreground"

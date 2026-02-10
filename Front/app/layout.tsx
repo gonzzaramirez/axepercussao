@@ -1,6 +1,7 @@
 import React from "react"
 import type { Metadata, Viewport } from "next"
 import { Bebas_Neue, Manrope } from "next/font/google"
+import { CartProvider } from "@/context/cart-context"
 
 import "./globals.css"
 
@@ -117,7 +118,7 @@ export default function RootLayout({
             __html: JSON.stringify(organizationJsonLd),
           }}
         />
-        {children}
+        <CartProvider>{children}</CartProvider>
       </body>
     </html>
   )

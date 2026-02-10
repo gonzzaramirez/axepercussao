@@ -1,48 +1,81 @@
 "use client"
 
-import { useState, useMemo } from "react"
+import { useState, useMemo, useEffect } from "react"
 import { motion } from "framer-motion"
 import { SlidersHorizontal, X } from "lucide-react"
-import { products } from "@/lib/data"
+import { products as mockProducts } from "@/lib/data"
+import { getProducts } from "@/lib/api/product"
+import { getCategories } from "@/lib/api/category"
 import { ProductCard } from "@/components/product-card"
 import { ProductFilters } from "@/components/product-filters"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import type { Category, Brand } from "@/types"
+import type { Product, Category } from "@/types"
 
 export function ProductCatalog() {
-  const [selectedCategories, setSelectedCategories] = useState<Category[]>([])
-  const [selectedBrands, setSelectedBrands] = useState<Brand[]>([])
+  const [products, setProducts] = useState<Product[]>([])
+  const [categories, setCategories] = useState<Category[]>([])
+  const [selectedCategories, setSelectedCategories] = useState<string[]>([])
+  const [selectedBrands, setSelectedBrands] = useState<string[]>([])
+  const [selectedType, setSelectedType] = useState<string | null>(null)
   const [showMobileFilters, setShowMobileFilters] = useState(false)
+
+  useEffect(() => {
+    Promise.all([getProducts(), getCategories()])
+      .then(([prods, cats]) => {
+        setProducts(prods)
+        setCategories(cats)
+      })
+      .catch(() => {
+        setProducts(
+          mockProducts.map((p) => ({ ...p, image: p.image || "/placeholder.svg" } as Product))
+        )
+      })
+  }, [])
 
   const filteredProducts = useMemo(() => {
     return products.filter((p) => {
-      const matchesCategory =
-        selectedCategories.length === 0 ||
-        selectedCategories.includes(p.category)
-      const matchesBrand =
-        selectedBrands.length === 0 || selectedBrands.includes(p.brand)
-      return matchesCategory && matchesBrand
-    })
-  }, [selectedCategories, selectedBrands])
+      // Filtro por tipo
+      if (selectedType && p.productType !== selectedType) return false
 
-  const handleCategoryChange = (category: Category) => {
+      // Filtro por categoría (slug)
+      if (selectedCategories.length > 0) {
+        const catSlug = p.category?.slug ?? ""
+        if (!selectedCategories.includes(catSlug)) return false
+      }
+
+      // Filtro por marca (buscar en variantes)
+      if (selectedBrands.length > 0) {
+        const productBrandSlugs = (p.variants ?? [])
+          .map((v) => v.brand?.slug)
+          .filter(Boolean) as string[]
+        if (!selectedBrands.some((b) => productBrandSlugs.includes(b))) return false
+      }
+
+      return true
+    })
+  }, [products, selectedCategories, selectedBrands, selectedType])
+
+  const handleCategoryChange = (slug: string) => {
     setSelectedCategories((prev) =>
-      prev.includes(category)
-        ? prev.filter((c) => c !== category)
-        : [...prev, category]
+      prev.includes(slug) ? prev.filter((c) => c !== slug) : [...prev, slug]
     )
   }
 
-  const handleBrandChange = (brand: Brand) => {
+  const handleBrandChange = (slug: string) => {
     setSelectedBrands((prev) =>
-      prev.includes(brand) ? prev.filter((b) => b !== brand) : [...prev, brand]
+      prev.includes(slug) ? prev.filter((b) => b !== slug) : [...prev, slug]
     )
+  }
+
+  const handleTypeChange = (type: string | null) => {
+    setSelectedType(type)
   }
 
   const handleClearAll = () => {
     setSelectedCategories([])
     setSelectedBrands([])
+    setSelectedType(null)
   }
 
   return (
@@ -72,9 +105,12 @@ export function ProductCatalog() {
             <ProductFilters
               selectedCategories={selectedCategories}
               selectedBrands={selectedBrands}
+              selectedType={selectedType}
               onCategoryChange={handleCategoryChange}
               onBrandChange={handleBrandChange}
+              onTypeChange={handleTypeChange}
               onClearAll={handleClearAll}
+              categories={categories}
             />
           </div>
         </aside>
@@ -113,9 +149,12 @@ export function ProductCatalog() {
                 <ProductFilters
                   selectedCategories={selectedCategories}
                   selectedBrands={selectedBrands}
+                  selectedType={selectedType}
                   onCategoryChange={handleCategoryChange}
                   onBrandChange={handleBrandChange}
+                  onTypeChange={handleTypeChange}
                   onClearAll={handleClearAll}
+                  categories={categories}
                 />
                 <Button
                   onClick={() => setShowMobileFilters(false)}

@@ -1,17 +1,32 @@
 "use client"
 
-import { useRef } from "react"
+import { useRef, useEffect, useState } from "react"
 import Link from "next/link"
 import { motion, useInView } from "framer-motion"
 import { ArrowRight } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { products } from "@/lib/data"
+import { products as mockProducts } from "@/lib/data"
+import { getProducts } from "@/lib/api/product"
 import { ProductCard } from "@/components/product-card"
+import type { Product } from "@/types"
 
 export function FeaturedProducts() {
   const ref = useRef<HTMLDivElement>(null)
   const isInView = useInView(ref, { once: true, margin: "-80px" })
-  const featured = products.filter((p) => p.featured)
+  const [featured, setFeatured] = useState<Product[]>([])
+
+  useEffect(() => {
+    getProducts({ featured: true })
+      .then(setFeatured)
+      .catch(() => {
+        // Fallback a datos mock
+        setFeatured(
+          mockProducts
+            .filter((p) => p.featured)
+            .map((p) => ({ ...p, image: p.image || "/placeholder.svg" } as Product))
+        )
+      })
+  }, [])
 
   return (
     <section id="destacados" ref={ref} className="relative bg-secondary/40 py-16 lg:py-24">
