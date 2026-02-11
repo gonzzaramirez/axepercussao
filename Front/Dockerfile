@@ -1,52 +1,49 @@
-## 1. Etapa de dependencias y construcción
+## Etapa de build
 FROM node:22-alpine AS builder
 
-# Instalar libc6-compat (Crítico para que Next.js y Sharp funcionen bien en Alpine)
+# Instalar compatibilidad necesaria
 RUN apk add --no-cache libc6-compat
 
 WORKDIR /app
 
-# Copiamos archivos de dependencias primero para aprovechar la caché de Docker
+# Copiamos archivos de dependencias
 COPY package.json package-lock.json* ./
 
-# Instalamos dependencias (agregamos sharp explícitamente para optimización de imágenes)
+# Instalamos dependencias (con legacy-peer-deps por el tema de date-fns)
 RUN npm install --legacy-peer-deps
 RUN npm install sharp --legacy-peer-deps
+
 # Copiamos el resto del código
 COPY . .
 
 
-# Construimos la aplicación
+# Declaramos que esperamos recibir esta variable durante el build
+ARG NEXT_PUBLIC_API_URL
+# La asignamos al entorno para que Next.js la vea
+ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
+# ---------------------------
+
+# Build de Next.js
 RUN npm run build
 
-## 2. Etapa de producción (Runner)
+## Etapa de producción
 FROM node:22-alpine AS runner
 
 WORKDIR /app
-
 ENV NODE_ENV=production
 
-# Instalar libc6-compat también en el runner
 RUN apk add --no-cache libc6-compat
-
-# Crear usuario no-root
 RUN addgroup --system --gid 1001 nodejs
 RUN adduser --system --uid 1001 nextjs
 
-# Copiar el contenido 'standalone' generado por el build
-# Esto incluye las dependencias necesarias y el server.js
 COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
-
-# Copiar archivos estáticos (imágenes, fuentes, estilos generados)
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
 COPY --from=builder --chown=nextjs:nodejs /app/public ./public
 
 USER nextjs
 
 EXPOSE 3000
-
 ENV PORT=3000
 ENV HOSTNAME="0.0.0.0"
 
-# El comando standard para modo standalone
 CMD ["node", "server.js"]
