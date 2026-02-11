@@ -17,10 +17,13 @@ RUN npm install sharp --legacy-peer-deps
 COPY . .
 
 
-# Variables de build (requeridas en producción para SSR/sitemap)
-# En Dokploy: Build Args = NEXT_PUBLIC_API_URL=https://api.tudominio.com NEXT_PUBLIC_SITE_URL=https://tudominio.com
+# Variables de build (OBLIGATORIAS en build, no en runtime)
+# En Dokploy: en el servicio Front → Build → "Build Arguments" / "Build Args", agregar:
+#   NEXT_PUBLIC_API_URL = https://back.farmaciadeturnomc.site
+#   NEXT_PUBLIC_SITE_URL = https://axe.farmaciadeturnomc.site
+# Si NEXT_PUBLIC_API_URL no se pasa aquí, el login y toda la API irán al dominio del front (404).
 ARG NEXT_PUBLIC_API_URL
-ARG NEXT_PUBLIC_SITE_URL=https://axepercussao.com
+ARG NEXT_PUBLIC_SITE_URL=https://axe.farmaciadeturnomc.site
 ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
 ENV NEXT_PUBLIC_SITE_URL=$NEXT_PUBLIC_SITE_URL
 

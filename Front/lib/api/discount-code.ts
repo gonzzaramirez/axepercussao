@@ -1,6 +1,6 @@
 import type { DiscountCode, ValidateDiscountCodeResponse } from "@/types"
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL
+import { API_URL } from "@/lib/api/config"
 
 // ─── Función PÚBLICA ────────────────────────────────
 

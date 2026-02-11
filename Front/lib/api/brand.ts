@@ -1,6 +1,6 @@
 import type { Brand } from "@/types"
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL
+import { API_URL } from "@/lib/api/config"
 
 /** Genera slug desde nombre (minúsculas, sin acentos, guiones) */
 function slugify(text: string): string {

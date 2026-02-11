@@ -1,6 +1,5 @@
 import type { Product } from "@/types"
-
-const API_URL = process.env.NEXT_PUBLIC_API_URL
+import { API_URL } from "@/lib/api/config"
 
 /** Mapea la respuesta del API al formato que usa la UI */
 function mapProduct(raw: any): Product {
