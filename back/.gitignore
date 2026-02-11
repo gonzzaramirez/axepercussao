@@ -1,10 +1,23 @@
-# compiled output
-/dist
-/node_modules
-/build
+# Dependencies
+node_modules/
+
+# Build
+dist/
+build/
+
+# Env (nunca subir secretos)
+.env
+.env.local
+.env.development
+.env.development.local
+.env.test
+.env.test.local
+.env.production
+.env.production.local
+.env*.local
 
 # Logs
-logs
+logs/
 *.log
 npm-debug.log*
 pnpm-debug.log*
@@ -14,45 +27,46 @@ lerna-debug.log*
 
 # OS
 .DS_Store
+Thumbs.db
 
-# Tests
-/coverage
-/.nyc_output
-
-# IDEs and editors
-/.idea
+# IDE / editors
+.idea/
 .project
 .classpath
 .c9/
 *.launch
 .settings/
 *.sublime-workspace
-
-# IDE - VSCode
-.vscode/*
+.vscode/
 !.vscode/settings.json
 !.vscode/tasks.json
 !.vscode/launch.json
 !.vscode/extensions.json
 
-# dotenv environment variable files
-.env
-.env.development.local
-.env.test.local
-.env.production.local
-.env.local
+# Tests / coverage
+coverage/
+.nyc_output/
 
-# temp directory
+# Temp
 .temp
 .tmp
+*.tmp
 
-# Runtime data
-pids
+# Runtime / Prisma
+pids/
 *.pid
-*.seed
 *.pid.lock
+*.seed
+/generated/prisma
+.prisma/
 
-# Diagnostic reports (https://nodejs.org/api/report.html)
+# Diagnostic reports
 report.[0-9]*.[0-9]*.[0-9]*.[0-9]*.json
 
-/generated/prisma
+# Lock files alternativos
+pnpm-lock.yaml
+yarn.lock
+bun.lock
+
+# Datos locales / hojas de cálculo (opcional: descomentar si no querés subir CSVs)
+# *.csv

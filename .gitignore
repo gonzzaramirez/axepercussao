@@ -1,0 +1,29 @@
+# Raíz del repo: ignorar todo lo sensible y generado
+
+# Env en cualquier carpeta
+.env
+.env.local
+.env.*.local
+.env.development
+.env.production
+.env.test
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+logs/
+
+# IDEs
+.idea/
+*.sublime-*
+
+# Build / cache (por si se generan en raíz)
+node_modules/
+dist/
+.next/
+out/
+build/
+*.tsbuildinfo
