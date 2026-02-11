@@ -22,6 +22,7 @@ import {
 } from "@/types";
 import { formatPrice, registerLabels } from "@/lib/data";
 import { useCart } from "@/context/cart-context";
+import { BLUR_DATA_URL } from "@/lib/image-blur";
 
 // ─── Helpers ────────────────────────────────────────────────
 
@@ -400,6 +401,8 @@ export function ProductDetail({ product }: ProductDetailProps) {
               className="object-cover"
               sizes="(max-width: 1024px) 100vw, 50vw"
               priority
+              placeholder="blur"
+              blurDataURL={BLUR_DATA_URL}
             />
             {product.featured && (
               <Badge className="absolute left-4 top-4 rounded-full bg-carnival-primary text-white border-transparent hover:bg-carnival-primary">

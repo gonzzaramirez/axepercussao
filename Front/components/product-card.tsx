@@ -10,6 +10,7 @@ import type { Product } from "@/types";
 import { formatPrice } from "@/lib/data";
 import { getAvailableVariants } from "@/types";
 import { useCart } from "@/context/cart-context";
+import { BLUR_DATA_URL } from "@/lib/image-blur";
 
 interface ProductCardProps {
   product: Product;
@@ -76,6 +77,9 @@ export function ProductCard({ product, index = 0 }: ProductCardProps) {
               alt={product.name}
               fill
               className="object-cover transition-transform duration-500 group-hover:scale-105"
+              placeholder="blur"
+              blurDataURL={BLUR_DATA_URL}
+              sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 25vw"
             />
             {product.featured && (
               <Badge className="absolute left-3 top-3 rounded-full bg-carnival-primary text-white border-transparent hover:bg-carnival-primary">

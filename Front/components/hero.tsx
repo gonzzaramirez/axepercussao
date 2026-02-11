@@ -6,8 +6,9 @@ import Image from "next/image";
 import { motion, useInView } from "framer-motion";
 import { ArrowRight, Instagram } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { BLUR_DATA_URL } from "@/lib/image-blur";
 
-const HERO_IMAGE = "/hero.png";
+const HERO_IMAGE = "/hero.jpg";
 
 export function Hero() {
   const ref = useRef<HTMLDivElement>(null);
@@ -20,9 +21,12 @@ export function Hero() {
           src={HERO_IMAGE}
           alt="Batería y percusión de carnaval"
           fill
-          className="object-cover object-center"
+          className="object-cover object-center max-md:object-top"
           priority
-          sizes="100vw"
+          placeholder="blur"
+          blurDataURL={BLUR_DATA_URL}
+          quality={80}
+          sizes="(max-width: 768px) 100vw, (max-width: 1200px) 100vw, 1920px"
         />
         <div
           className="absolute inset-0 bg-gradient-to-b from-black/70 via-black/55 to-black/75"
