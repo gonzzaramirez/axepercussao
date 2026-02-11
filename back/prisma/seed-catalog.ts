@@ -75,10 +75,26 @@ const ACCESSORY_PREFIXES: AccessoryPrefixEntry[] = [
   { prefix: 'capa', masterName: 'Funda', category: 'fundas' },
 
   // ── Baquetas y Palillos (prefijos más largos primero) ──
-  { prefix: 'par baqueta', masterName: 'Baquetas', category: 'baquetas-y-palillos' },
-  { prefix: 'par baquet', masterName: 'Baquetas', category: 'baquetas-y-palillos' }, // typo del CSV
-  { prefix: 'baqueta', masterName: 'Baquetas', category: 'baquetas-y-palillos' },
-  { prefix: 'palillo', masterName: 'Baquetas', category: 'baquetas-y-palillos' },
+  {
+    prefix: 'par baqueta',
+    masterName: 'Baquetas',
+    category: 'baquetas-y-palillos',
+  },
+  {
+    prefix: 'par baquet',
+    masterName: 'Baquetas',
+    category: 'baquetas-y-palillos',
+  }, // typo del CSV
+  {
+    prefix: 'baqueta',
+    masterName: 'Baquetas',
+    category: 'baquetas-y-palillos',
+  },
+  {
+    prefix: 'palillo',
+    masterName: 'Baquetas',
+    category: 'baquetas-y-palillos',
+  },
   { prefix: 'paillo', masterName: 'Baquetas', category: 'baquetas-y-palillos' }, // typo del CSV
   { prefix: 'bordao', masterName: 'Bordãos', category: 'baquetas-y-palillos' }, // normaliza "Bordãos"
 
@@ -95,9 +111,21 @@ const ACCESSORY_PREFIXES: AccessoryPrefixEntry[] = [
   { prefix: 'talabarte', masterName: 'Correa', category: 'correas' },
 
   // ── Tensores, Llaves, Tuercas ──
-  { prefix: 'tensor', masterName: 'Tensores y Repuestos', category: 'tensores-y-llaves' },
-  { prefix: 'llave', masterName: 'Llaves de Afinación', category: 'tensores-y-llaves' },
-  { prefix: 'tuerca', masterName: 'Tensores y Repuestos', category: 'tensores-y-llaves' },
+  {
+    prefix: 'tensor',
+    masterName: 'Tensores y Repuestos',
+    category: 'tensores-y-llaves',
+  },
+  {
+    prefix: 'llave',
+    masterName: 'Llaves de Afinación',
+    category: 'tensores-y-llaves',
+  },
+  {
+    prefix: 'tuerca',
+    masterName: 'Tensores y Repuestos',
+    category: 'tensores-y-llaves',
+  },
 
   // ── Otros accesorios ──
   { prefix: 'gambito', masterName: 'Gambito', category: 'baquetas-y-palillos' },
@@ -112,28 +140,118 @@ const ACCESSORY_PREFIXES: AccessoryPrefixEntry[] = [
 
 const INSTRUMENT_KEYWORDS: InstrumentKeywordEntry[] = [
   // ── Graves ──
-  { keyword: 'surdo', masterName: 'Surdo', category: 'graves', register: 'GRAVE' as InstrumentRegister },
-  { keyword: 'rebolo', masterName: 'Rebolo', category: 'graves', register: 'GRAVE' as InstrumentRegister },
-  { keyword: 'tantan', masterName: 'Tantan', category: 'graves', register: 'GRAVE' as InstrumentRegister },
-  { keyword: 'bumbo', masterName: 'Bumbo', category: 'graves', register: 'GRAVE' as InstrumentRegister },
-  { keyword: 'cuica', masterName: 'Cuica', category: 'graves', register: 'GRAVE' as InstrumentRegister },
+  {
+    keyword: 'surdo',
+    masterName: 'Surdo',
+    category: 'graves',
+    register: 'GRAVE' as InstrumentRegister,
+  },
+  {
+    keyword: 'rebolo',
+    masterName: 'Rebolo',
+    category: 'graves',
+    register: 'GRAVE' as InstrumentRegister,
+  },
+  {
+    keyword: 'tantan',
+    masterName: 'Tantan',
+    category: 'graves',
+    register: 'GRAVE' as InstrumentRegister,
+  },
+  {
+    keyword: 'bumbo',
+    masterName: 'Bumbo',
+    category: 'graves',
+    register: 'GRAVE' as InstrumentRegister,
+  },
+  {
+    keyword: 'cuica',
+    masterName: 'Cuica',
+    category: 'graves',
+    register: 'GRAVE' as InstrumentRegister,
+  },
 
   // ── Medios (específicos antes de genéricos) ──
-  { keyword: 'timba', masterName: 'Timbal', category: 'medios', register: 'MEDIO' as InstrumentRegister },
-  { keyword: 'repicaixa', masterName: 'Repique', category: 'agudos', register: 'AGUDO' as InstrumentRegister },
-  { keyword: 'furacaixa', masterName: 'Caixa', category: 'medios', register: 'MEDIO' as InstrumentRegister },
-  { keyword: 'caixa', masterName: 'Caixa', category: 'medios', register: 'MEDIO' as InstrumentRegister },
-  { keyword: 'pandeiro', masterName: 'Pandeiro', category: 'medios', register: 'MEDIO' as InstrumentRegister },
+  {
+    keyword: 'timba',
+    masterName: 'Timbal',
+    category: 'medios',
+    register: 'MEDIO' as InstrumentRegister,
+  },
+  {
+    keyword: 'repicaixa',
+    masterName: 'Repique',
+    category: 'agudos',
+    register: 'AGUDO' as InstrumentRegister,
+  },
+  {
+    keyword: 'furacaixa',
+    masterName: 'Caixa',
+    category: 'medios',
+    register: 'MEDIO' as InstrumentRegister,
+  },
+  {
+    keyword: 'caixa',
+    masterName: 'Caixa',
+    category: 'medios',
+    register: 'MEDIO' as InstrumentRegister,
+  },
+  {
+    keyword: 'pandeiro',
+    masterName: 'Pandeiro',
+    category: 'medios',
+    register: 'MEDIO' as InstrumentRegister,
+  },
 
   // ── Agudos ──
-  { keyword: 'repique', masterName: 'Repique', category: 'agudos', register: 'AGUDO' as InstrumentRegister },
-  { keyword: 'tamborim', masterName: 'Tamborim', category: 'agudos', register: 'AGUDO' as InstrumentRegister },
-  { keyword: 'agogo', masterName: 'Agogó', category: 'agudos', register: 'AGUDO' as InstrumentRegister },
-  { keyword: 'chocalho', masterName: 'Chocalho', category: 'agudos', register: 'AGUDO' as InstrumentRegister },
-  { keyword: 'rocar', masterName: 'Rocar', category: 'agudos', register: 'AGUDO' as InstrumentRegister },
-  { keyword: 'ganza', masterName: 'Ganza', category: 'agudos', register: 'AGUDO' as InstrumentRegister },
-  { keyword: 'reco', masterName: 'Reco-Reco', category: 'agudos', register: 'AGUDO' as InstrumentRegister },
-  { keyword: 'frigideira', masterName: 'Frigideira', category: 'agudos', register: 'AGUDO' as InstrumentRegister },
+  {
+    keyword: 'repique',
+    masterName: 'Repique',
+    category: 'agudos',
+    register: 'AGUDO' as InstrumentRegister,
+  },
+  {
+    keyword: 'tamborim',
+    masterName: 'Tamborim',
+    category: 'agudos',
+    register: 'AGUDO' as InstrumentRegister,
+  },
+  {
+    keyword: 'agogo',
+    masterName: 'Agogó',
+    category: 'agudos',
+    register: 'AGUDO' as InstrumentRegister,
+  },
+  {
+    keyword: 'chocalho',
+    masterName: 'Chocalho',
+    category: 'agudos',
+    register: 'AGUDO' as InstrumentRegister,
+  },
+  {
+    keyword: 'rocar',
+    masterName: 'Rocar',
+    category: 'agudos',
+    register: 'AGUDO' as InstrumentRegister,
+  },
+  {
+    keyword: 'ganza',
+    masterName: 'Ganza',
+    category: 'agudos',
+    register: 'AGUDO' as InstrumentRegister,
+  },
+  {
+    keyword: 'reco',
+    masterName: 'Reco-Reco',
+    category: 'agudos',
+    register: 'AGUDO' as InstrumentRegister,
+  },
+  {
+    keyword: 'frigideira',
+    masterName: 'Frigideira',
+    category: 'agudos',
+    register: 'AGUDO' as InstrumentRegister,
+  },
 ];
 
 const BASE_CATEGORIES = [
@@ -151,7 +269,10 @@ const BASE_CATEGORIES = [
 const BRAND_ALIASES = [
   { name: 'IVSOM', aliases: ['ivsom'] },
   { name: 'Gope', aliases: ['gope'] },
-  { name: 'Contemporânea', aliases: ['contemporanea', 'contemporâneo', 'contemporaneo'] },
+  {
+    name: 'Contemporânea',
+    aliases: ['contemporanea', 'contemporâneo', 'contemporaneo'],
+  },
   { name: 'Redenção', aliases: ['redencao', 'redençao'] },
   { name: 'King', aliases: ['king'] },
   { name: 'Izzo', aliases: ['izzo'] },
@@ -337,11 +458,13 @@ function extractAttributes(originalName: string, masterInfo: MasterInfo) {
   if (norm.includes('cuero/nylon')) material = 'Cuero/Nylon';
   else if (norm.includes('cuero/cuero')) material = 'Cuero/Cuero';
   else if (norm.includes('cuero')) material = 'Cuero';
-  else if (norm.includes('nylon') || norm.includes('nyon')) material = 'Nylon'; // "nyon" = typo CSV
+  else if (norm.includes('nylon') || norm.includes('nyon'))
+    material = 'Nylon'; // "nyon" = typo CSV
   else if (norm.includes('plastico') || norm.includes('hidraulico'))
     material = 'Plástico';
   else if (norm.includes('madera')) material = 'Madera';
-  else if (norm.includes('duraluminio')) material = 'Duralumínio'; // antes de "aluminio"
+  else if (norm.includes('duraluminio'))
+    material = 'Duralumínio'; // antes de "aluminio"
   else if (norm.includes('aluminio')) material = 'Aluminio';
   else if (norm.includes('inox') || norm.includes('acero'))
     material = 'Acero Inox';
@@ -431,7 +554,7 @@ async function main() {
   // ──────────────────────────────────────────────
   // 2. Procesar archivos CSV
   // ──────────────────────────────────────────────
-  const filesDir = path.resolve(__dirname, '../../');
+  const filesDir = __dirname;
   const allFiles = fs
     .readdirSync(filesDir)
     .filter((f) => f.toLowerCase().endsWith('.csv'));
@@ -532,12 +655,8 @@ async function main() {
       // SKU legible: SURDO-IVS-18-A1B2C3
       const skuParts = [
         productSlug.substring(0, 10).toUpperCase(),
-        attrs.brandName
-          ? attrs.brandName.substring(0, 3).toUpperCase()
-          : 'GEN',
-        attrs.size
-          ? attrs.size.replace(/[^0-9]/g, '').substring(0, 4)
-          : 'U',
+        attrs.brandName ? attrs.brandName.substring(0, 3).toUpperCase() : 'GEN',
+        attrs.size ? attrs.size.replace(/[^0-9]/g, '').substring(0, 4) : 'U',
         uniqueHash,
       ];
       const vSku = skuParts.join('-');
