@@ -23,5 +23,4 @@ RUN ls -la dist && ls -la dist/src
 EXPOSE 3080
 
 # EntryPoint: usa estructura estándar Nest v11 (dist/main.js)
-CMD ["node", "dist/main.js"]
-
+CMD ["node", "dist/src/main.js"]
