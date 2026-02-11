@@ -431,7 +431,7 @@ async function main() {
   // ──────────────────────────────────────────────
   // 2. Procesar archivos CSV
   // ──────────────────────────────────────────────
-  const filesDir = path.resolve(__dirname, '../../');
+ const filesDir = __dirname;
   const allFiles = fs
     .readdirSync(filesDir)
     .filter((f) => f.toLowerCase().endsWith('.csv'));
