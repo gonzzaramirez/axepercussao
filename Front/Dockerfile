@@ -10,9 +10,8 @@ WORKDIR /app
 COPY package.json package-lock.json* ./
 
 # Instalamos dependencias (agregamos sharp explícitamente para optimización de imágenes)
-RUN npm install
-RUN npm install sharp
-
+RUN npm install --legacy-peer-deps
+RUN npm install sharp --legacy-peer-deps
 # Copiamos el resto del código
 COPY . .
 
