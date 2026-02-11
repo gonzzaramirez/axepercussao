@@ -34,9 +34,14 @@ async function bootstrap() {
     }),
   );
 
-  // 4. CORS configurado para el frontend
+  // 4. CORS configurado para el frontend (sin trailing slash para coincidir con Origin)
+  const frontOrigin =
+    (process.env.FRONTEND_URL || 'http://localhost:3000').trim().replace(
+      /\/+$/,
+      '',
+    ) || 'http://localhost:3000';
   app.enableCors({
-    origin: process.env.FRONTEND_URL || 'http://localhost:3000',
+    origin: frontOrigin,
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
     allowedHeaders: [

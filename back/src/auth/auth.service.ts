@@ -103,20 +103,26 @@ export class AuthService {
   }
 
   getCookieOptions(isProduction: boolean) {
-    const frontendUrl = this.configService.get<string>('FRONTEND_URL') || '';
+    const raw =
+      this.configService.get<string>('FRONTEND_URL') ||
+      process.env.FRONTEND_URL ||
+      '';
+    const frontendUrl = raw.trim().replace(/\/+$/, '');
     let domain: string | undefined;
+    let sameSite: 'lax' | 'none' = 'lax';
 
     if (isProduction && frontendUrl) {
       try {
         const url = new URL(frontendUrl);
         const hostname = url.hostname;
-        // Detectar TLDs de segundo nivel (.com.ar, .com.uy, etc.)
         const parts = hostname.split('.');
         if (parts.length >= 3) {
-          domain = '.' + parts.slice(-3).join('.');
+          domain = '.' + parts.slice(-2).join('.');
         } else if (parts.length >= 2) {
           domain = '.' + parts.slice(-2).join('.');
         }
+        // Front y back en subdominios distintos: cookie debe enviarse cross-origin
+        sameSite = 'none';
       } catch {
         // Si no se puede parsear, no setear domain
       }
@@ -125,7 +131,7 @@ export class AuthService {
     return {
       httpOnly: true,
       secure: isProduction,
-      sameSite: 'lax' as const,
+      sameSite,
       path: '/',
       ...(domain && { domain }),
     };
