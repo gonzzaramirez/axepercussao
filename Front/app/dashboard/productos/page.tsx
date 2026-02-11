@@ -21,7 +21,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
-import { getProducts, deleteProduct } from "@/lib/api/product"
+import { getProducts, updateProduct } from "@/lib/api/product"
 import { getCategories } from "@/lib/api/category"
 import { getBrands } from "@/lib/api/brand"
 import type { Product, Category, Brand } from "@/types"
@@ -60,6 +60,9 @@ export default function ProductosPage() {
   const [search, setSearch] = useState("")
   const [typeFilter, setTypeFilter] = useState<string>("all")
   const [categoryFilter, setCategoryFilter] = useState<string>("all")
+  const [statusFilter, setStatusFilter] = useState<"all" | "active" | "inactive">(
+    "active",
+  )
 
   // Dialog
   const [dialogOpen, setDialogOpen] = useState(false)
@@ -110,12 +113,20 @@ export default function ProductosPage() {
     // Filtro por búsqueda
     if (search) {
       const q = search.toLowerCase()
-      return (
-        p.name.toLowerCase().includes(q) ||
-        (p.sku && p.sku.toLowerCase().includes(q)) ||
-        p.description.toLowerCase().includes(q)
-      )
+      if (
+        !(
+          p.name.toLowerCase().includes(q) ||
+          (p.sku && p.sku.toLowerCase().includes(q)) ||
+          p.description.toLowerCase().includes(q)
+        )
+      ) {
+        return false
+      }
     }
+
+    // Filtro por estado (activo / inactivo)
+    if (statusFilter === "active" && p.isActive === false) return false
+    if (statusFilter === "inactive" && p.isActive !== false) return false
 
     return true
   })
@@ -148,14 +159,24 @@ export default function ProductosPage() {
     if (!deleteTarget) return
     setDeleting(true)
     try {
-      await deleteProduct(deleteTarget.id)
-      toast.success(`"${deleteTarget.name}" eliminado`)
+      await updateProduct(deleteTarget.id, { isActive: false })
+      toast.success(`"${deleteTarget.name}" dado de baja`)
       loadData()
     } catch (err: any) {
-      toast.error(err.message || "Error eliminando producto")
+      toast.error(err.message || "Error dando de baja el producto")
     }
     setDeleting(false)
     setDeleteTarget(null)
+  }
+
+  const handleRestore = async (product: Product) => {
+    try {
+      await updateProduct(product.id, { isActive: true })
+      toast.success(`"${product.name}" reactivado`)
+      loadData()
+    } catch (err: any) {
+      toast.error(err.message || "Error reactivando producto")
+    }
   }
 
   // ─── Categorías filtradas según el tab activo ────
@@ -200,22 +221,37 @@ export default function ProductosPage() {
 
       {/* ═══ Filtros ═══ */}
       <div className="mb-4 space-y-3">
-        <Tabs value={typeFilter} onValueChange={setTypeFilter}>
-          <TabsList className="grid w-full grid-cols-3 sm:w-fit">
-            <TabsTrigger value="all">
-              <Layers className="mr-1.5 h-3.5 w-3.5" />
-              Todos
-            </TabsTrigger>
-            <TabsTrigger value="INSTRUMENT">
-              <Package className="mr-1.5 h-3.5 w-3.5" />
-              Instrumentos
-            </TabsTrigger>
-            <TabsTrigger value="ACCESSORY">
-              <Wrench className="mr-1.5 h-3.5 w-3.5" />
-              Accesorios
-            </TabsTrigger>
-          </TabsList>
-        </Tabs>
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <Tabs value={typeFilter} onValueChange={setTypeFilter}>
+            <TabsList className="grid w-full grid-cols-3 sm:w-fit">
+              <TabsTrigger value="all">
+                <Layers className="mr-1.5 h-3.5 w-3.5" />
+                Todos
+              </TabsTrigger>
+              <TabsTrigger value="INSTRUMENT">
+                <Package className="mr-1.5 h-3.5 w-3.5" />
+                Instrumentos
+              </TabsTrigger>
+              <TabsTrigger value="ACCESSORY">
+                <Wrench className="mr-1.5 h-3.5 w-3.5" />
+                Accesorios
+              </TabsTrigger>
+            </TabsList>
+          </Tabs>
+
+          <Tabs
+            value={statusFilter}
+            onValueChange={(value) =>
+              setStatusFilter(value as "all" | "active" | "inactive")
+            }
+          >
+            <TabsList className="grid w-full grid-cols-3 sm:w-[260px]">
+              <TabsTrigger value="active">Activos</TabsTrigger>
+              <TabsTrigger value="inactive">Inactivos</TabsTrigger>
+              <TabsTrigger value="all">Todos</TabsTrigger>
+            </TabsList>
+          </Tabs>
+        </div>
 
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
           <Select value={categoryFilter} onValueChange={setCategoryFilter}>
@@ -256,6 +292,7 @@ export default function ProductosPage() {
               products={filteredProducts}
               onEdit={openEdit}
               onDelete={setDeleteTarget}
+              onRestore={handleRestore}
               formatPrice={formatPrice}
               search={search}
             />
@@ -264,6 +301,7 @@ export default function ProductosPage() {
               products={filteredProducts}
               onEdit={openEdit}
               onDelete={setDeleteTarget}
+              onRestore={handleRestore}
               formatPrice={formatPrice}
               search={search}
             />
@@ -288,14 +326,14 @@ export default function ProductosPage() {
       >
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>¿Eliminar producto?</AlertDialogTitle>
+            <AlertDialogTitle>¿Dar de baja el producto?</AlertDialogTitle>
             <AlertDialogDescription>
-              Se eliminará{" "}
+              Se marcará como inactivo{" "}
               <span className="font-medium text-gray-900">
                 &quot;{deleteTarget?.name}&quot;
               </span>{" "}
-              y todas sus variantes. Esta acción se puede deshacer desde
-              la sección de productos eliminados.
+              y dejará de mostrarse como producto activo. Podés
+              reactivarlo editando el producto y marcándolo como activo.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

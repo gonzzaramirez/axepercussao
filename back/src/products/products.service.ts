@@ -96,7 +96,7 @@ export class ProductsService {
 
   async findBySlug(slug: string) {
     const product = await this.prisma.product.findFirst({
-      where: { slug, deletedAt: null, isActive: true },
+      where: { slug, deletedAt: null },
       include: {
         category: true,
         variants: {

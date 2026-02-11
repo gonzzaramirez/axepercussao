@@ -91,7 +91,10 @@ export default async function ProductPage({ params }: ProductPageProps) {
       "@type": "Offer",
       price: product.price,
       priceCurrency: "UYU",
-      availability: "https://schema.org/InStock",
+      availability:
+        product.isActive === false
+          ? "https://schema.org/Discontinued"
+          : "https://schema.org/InStock",
     },
   }
 

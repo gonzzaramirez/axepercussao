@@ -49,7 +49,7 @@ export async function getProducts(options?: {
 export async function getProductBySlug(slug: string): Promise<Product | null> {
   try {
     const res = await fetch(`${API_URL}/products/slug/${slug}`, {
-      next: { revalidate: 60 },
+      cache: "no-store",
     })
     if (!res.ok) return null
     const data = await res.json()

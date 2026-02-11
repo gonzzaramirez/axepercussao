@@ -261,6 +261,7 @@ export function ProductFormDialog({
           material: v.material || undefined,
           price: v.price || undefined,
           stockQuantity: v.stockQuantity || 0,
+          imageUrl: v.imageUrl || undefined,
           isActive: v.isActive,
         })),
       }

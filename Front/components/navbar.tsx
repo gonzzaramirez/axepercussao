@@ -36,11 +36,16 @@ export function Navbar() {
     return () => window.removeEventListener("scroll", onScroll)
   }, [])
 
+  const isHome = pathname === "/"
+  const isSolid = scrolled || !isHome
+
   const linkStyle = (href: string) =>
     cn(
       "text-sm font-semibold transition-colors",
-      scrolled
-        ? "text-foreground hover:text-foreground"
+      isSolid
+        ? isActiveLink(pathname, href)
+          ? "text-carnival-primary"
+          : "text-foreground hover:text-foreground"
         : isActiveLink(pathname, href)
           ? "text-carnival-primary drop-shadow-md"
           : "text-white drop-shadow-sm hover:text-white"
@@ -50,7 +55,7 @@ export function Navbar() {
     <header
       className={cn(
         "fixed left-0 right-0 top-0 z-50 transition-all duration-300",
-        scrolled
+        isSolid
           ? "border-b border-border/80 bg-background/80 shadow-lg backdrop-blur-xl"
           : "bg-transparent"
       )}
@@ -64,7 +69,7 @@ export function Navbar() {
           <span
             className={cn(
               "font-display text-xl tracking-tight transition-colors sm:text-2xl",
-              scrolled ? "text-foreground" : "text-white drop-shadow-sm"
+              isSolid ? "text-foreground" : "text-white drop-shadow-sm"
             )}
           >
             AXÉ
@@ -99,7 +104,7 @@ export function Navbar() {
             size="icon"
             className={cn(
               "relative h-9 w-9 rounded-full",
-              scrolled
+              isSolid
                 ? "border-border bg-secondary/50 text-foreground hover:bg-secondary"
                 : "border-white/30 bg-white/15 text-white backdrop-blur-sm drop-shadow-sm hover:bg-white/25"
             )}
@@ -119,7 +124,7 @@ export function Navbar() {
             size="icon"
             className={cn(
               "h-9 w-9 rounded-full md:hidden",
-              scrolled
+              isSolid
                 ? "border-border bg-secondary/50 text-foreground hover:bg-secondary"
                 : "border-white/30 bg-white/15 text-white backdrop-blur-sm drop-shadow-sm hover:bg-white/25"
             )}

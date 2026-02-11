@@ -4,12 +4,13 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import type { Product } from "@/types"
-import { Package, Pencil, Star, Trash2, Wrench } from "lucide-react"
+import { Package, Pencil, RotateCcw, Star, Trash2, Wrench } from "lucide-react"
 
 interface ProductsDataCardProps {
   products: Product[]
   onEdit: (product: Product) => void
   onDelete: (product: Product) => void
+  onRestore: (product: Product) => void
   formatPrice: (price: number) => string
   search: string
 }
@@ -30,6 +31,7 @@ export function ProductsDataCard({
   products,
   onEdit,
   onDelete,
+  onRestore,
   formatPrice,
   search,
 }: ProductsDataCardProps) {
@@ -157,14 +159,27 @@ export function ProductsDataCard({
                 <Pencil className="mr-2 h-4 w-4" />
                 Editar
               </Button>
-              <Button
-                variant="outline"
-                size="icon"
-                className="text-destructive hover:text-destructive"
-                onClick={() => onDelete(product)}
-              >
-                <Trash2 className="h-4 w-4" />
-              </Button>
+              {product.isActive ? (
+                <Button
+                  variant="outline"
+                  size="icon"
+                  className="text-destructive hover:text-destructive"
+                  onClick={() => onDelete(product)}
+                  aria-label="Dar de baja producto"
+                >
+                  <Trash2 className="h-4 w-4" />
+                </Button>
+              ) : (
+                <Button
+                  variant="outline"
+                  size="icon"
+                  className="text-emerald-600 hover:text-emerald-700"
+                  onClick={() => onRestore(product)}
+                  aria-label="Restaurar producto"
+                >
+                  <RotateCcw className="h-4 w-4" />
+                </Button>
+              )}
             </div>
           </CardContent>
         </Card>

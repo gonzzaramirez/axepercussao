@@ -387,6 +387,19 @@ export function VariantManager({
                       placeholder="ej: Cuero"
                     />
                   </div>
+                  <div>
+                    <Label className="mb-1.5 block text-xs">
+                      Imagen de la variante
+                    </Label>
+                    <Input
+                      value={variant.imageUrl}
+                      onChange={(e) =>
+                        updateVariant(index, "imageUrl", e.target.value)
+                      }
+                      className="h-9 text-xs"
+                      placeholder="URL (opcional, si no toma la del producto)"
+                    />
+                  </div>
                   <div className="grid grid-cols-2 gap-2">
                     <div>
                       <Label className="mb-1.5 block text-xs">Precio (ARS)</Label>
@@ -434,6 +447,7 @@ export function VariantManager({
                   <TableHead className="w-[100px] text-xs">Medida</TableHead>
                   <TableHead className="w-[120px] text-xs">Modelo</TableHead>
                   <TableHead className="w-[100px] text-xs">Material</TableHead>
+                  <TableHead className="w-[180px] text-xs">Imagen</TableHead>
                   <TableHead className="w-[110px] text-xs">Precio (ARS)</TableHead>
                   <TableHead className="w-[80px] text-xs">Stock</TableHead>
                   <TableHead className="w-[44px]"></TableHead>
@@ -494,6 +508,20 @@ export function VariantManager({
                         }
                         className="h-8 text-xs"
                         placeholder="ej: Cuero"
+                      />
+                    </TableCell>
+                    <TableCell className="p-1.5">
+                      <Input
+                        value={variant.imageUrl}
+                        onChange={(e) =>
+                          updateVariant(
+                            index,
+                            "imageUrl",
+                            e.target.value
+                          )
+                        }
+                        className="h-8 text-xs"
+                        placeholder="URL imagen (opcional)"
                       />
                     </TableCell>
                     <TableCell className="p-1.5">

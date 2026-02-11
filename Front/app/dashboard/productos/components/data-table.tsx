@@ -11,12 +11,13 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import type { Product } from "@/types"
-import { Package, Pencil, Star, Trash2, Wrench } from "lucide-react"
+import { Package, Pencil, RotateCcw, Star, Trash2, Wrench } from "lucide-react"
 
 interface ProductsDataTableProps {
   products: Product[]
   onEdit: (product: Product) => void
   onDelete: (product: Product) => void
+  onRestore: (product: Product) => void
   formatPrice: (price: number) => string
   search: string
 }
@@ -37,6 +38,7 @@ export function ProductsDataTable({
   products,
   onEdit,
   onDelete,
+  onRestore,
   formatPrice,
   search,
 }: ProductsDataTableProps) {
@@ -158,14 +160,26 @@ export function ProductsDataTable({
                   >
                     <Pencil className="h-3.5 w-3.5" />
                   </Button>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-8 w-8 text-destructive hover:text-destructive"
-                    onClick={() => onDelete(product)}
-                  >
-                    <Trash2 className="h-3.5 w-3.5" />
-                  </Button>
+                  {product.isActive ? (
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8 text-destructive hover:text-destructive"
+                      onClick={() => onDelete(product)}
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </Button>
+                  ) : (
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8 text-emerald-600 hover:text-emerald-700"
+                      onClick={() => onRestore(product)}
+                      aria-label="Restaurar producto"
+                    >
+                      <RotateCcw className="h-3.5 w-3.5" />
+                    </Button>
+                  )}
                 </div>
               </TableCell>
             </TableRow>

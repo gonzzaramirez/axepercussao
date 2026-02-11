@@ -21,6 +21,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import {
   getCategories,
   createCategory,
@@ -35,6 +36,9 @@ export default function CategoriasPage() {
   const { viewMode } = useDashboardLayout()
   const [categories, setCategories] = useState<Category[]>([])
   const [loading, setLoading] = useState(true)
+  const [statusFilter, setStatusFilter] = useState<"all" | "active" | "inactive">(
+    "active",
+  )
   const [dialogOpen, setDialogOpen] = useState(false)
   const [editing, setEditing] = useState<Category | null>(null)
   const [saving, setSaving] = useState(false)
@@ -102,25 +106,50 @@ export default function CategoriasPage() {
   }
 
   const handleDelete = async (id: number) => {
-    if (!confirm("¿Eliminar esta categoría?")) return
+    if (!confirm("¿Dar de baja esta categoría?")) return
     try {
-      await deleteCategory(id)
+      await updateCategory(id, { isActive: false })
       loadData()
     } catch (err: any) {
       alert(err.message)
     }
   }
 
+  const filteredCategories = categories.filter((cat) => {
+    if (statusFilter === "active" && cat.isActive === false) return false
+    if (statusFilter === "inactive" && cat.isActive !== false) return false
+    return true
+  })
+
   return (
     <div>
       <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Categorías</h1>
-          <p className="text-sm text-gray-500">{categories.length} categorías</p>
+          <p className="text-sm text-gray-500">
+            {categories.length} categorías ·{" "}
+            {categories.filter((c) => c.isActive !== false).length} activas ·{" "}
+            {categories.filter((c) => c.isActive === false).length} inactivas
+          </p>
         </div>
         <Button onClick={openCreate} className="w-full sm:w-auto">
           <Plus className="mr-2 h-4 w-4" /> Nueva categoría
         </Button>
+      </div>
+
+      <div className="mb-4">
+        <Tabs
+          value={statusFilter}
+          onValueChange={(value) =>
+            setStatusFilter(value as "all" | "active" | "inactive")
+          }
+        >
+          <TabsList className="grid w-full grid-cols-3 sm:w-[260px]">
+            <TabsTrigger value="active">Activas</TabsTrigger>
+            <TabsTrigger value="inactive">Inactivas</TabsTrigger>
+            <TabsTrigger value="all">Todas</TabsTrigger>
+          </TabsList>
+        </Tabs>
       </div>
 
       {loading ? (
@@ -129,7 +158,7 @@ export default function CategoriasPage() {
         </div>
       ) : viewMode === "card" ? (
         <div className="space-y-3">
-          {categories.map((cat) => (
+          {filteredCategories.map((cat) => (
             <Card key={cat.id}>
               <CardContent className="p-4">
                 <div className="space-y-3">
@@ -164,7 +193,7 @@ export default function CategoriasPage() {
               </CardContent>
             </Card>
           ))}
-          {categories.length === 0 && (
+          {filteredCategories.length === 0 && (
             <Card>
               <CardContent className="py-8 text-center text-sm text-gray-500">
                 No hay categorías
@@ -186,7 +215,7 @@ export default function CategoriasPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {categories.map((cat) => (
+              {filteredCategories.map((cat) => (
                 <TableRow key={cat.id}>
                   <TableCell className="font-mono text-sm text-gray-500">#{cat.id}</TableCell>
                   <TableCell className="font-medium text-gray-900">{cat.name}</TableCell>
@@ -205,7 +234,7 @@ export default function CategoriasPage() {
                   </TableCell>
                 </TableRow>
               ))}
-              {categories.length === 0 && (
+              {filteredCategories.length === 0 && (
                 <TableRow>
                   <TableCell colSpan={6} className="py-8 text-center text-gray-500">
                     No hay categorías
