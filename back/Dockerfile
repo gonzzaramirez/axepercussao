@@ -17,10 +17,7 @@ RUN npx prisma generate
 # Build de NestJS
 RUN npm run build
 
-# Verificación en logs (útil en Dokploy para depurar paths)
-RUN ls -la dist && ls -la dist/src
-
 EXPOSE 3080
 
-# EntryPoint: usa estructura estándar Nest v11 (dist/main.js)
+# Nest compila a dist/src/main.js (sourceRoot: src)
 CMD ["node", "dist/src/main.js"]

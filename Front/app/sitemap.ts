@@ -1,17 +1,10 @@
 import type { MetadataRoute } from "next"
-import { products } from "@/lib/data"
+import { getProducts } from "@/lib/api/product"
 
-export default function sitemap(): MetadataRoute.Sitemap {
+export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || "https://axepercussao.com"
 
-  const productUrls: MetadataRoute.Sitemap = products.map((product) => ({
-    url: `${siteUrl}/productos/${product.slug}`,
-    lastModified: new Date(),
-    changeFrequency: "weekly",
-    priority: 0.7,
-  }))
-
-  return [
+  const staticPages: MetadataRoute.Sitemap = [
     {
       url: siteUrl,
       lastModified: new Date(),
@@ -24,6 +17,18 @@ export default function sitemap(): MetadataRoute.Sitemap {
       changeFrequency: "weekly",
       priority: 0.9,
     },
-    ...productUrls,
   ]
+
+  try {
+    const products = await getProducts()
+    const productUrls: MetadataRoute.Sitemap = products.map((product) => ({
+      url: `${siteUrl}/productos/${product.slug}`,
+      lastModified: new Date(),
+      changeFrequency: "weekly" as const,
+      priority: 0.7,
+    }))
+    return [...staticPages, ...productUrls]
+  } catch {
+    return staticPages
+  }
 }

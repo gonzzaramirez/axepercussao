@@ -2,7 +2,6 @@
 
 import { useState, useMemo, useEffect } from "react";
 import { SlidersHorizontal, X, Search } from "lucide-react";
-import { products as mockProducts } from "@/lib/data";
 import { getProducts } from "@/lib/api/product";
 import { getCategories } from "@/lib/api/category";
 import { ProductCard } from "@/components/product-card";
@@ -38,16 +37,11 @@ export function ProductCatalog() {
       .then(([prods, cats]) => {
         setProducts(prods);
         setCategories(cats);
-        setIsLoading(false);
       })
       .catch(() => {
-        setProducts(
-          mockProducts.map(
-            (p) => ({ ...p, image: p.image || "/placeholder.svg" }) as Product,
-          ),
-        );
-        setIsLoading(false);
-      });
+        setProducts([]);
+      })
+      .finally(() => setIsLoading(false));
   }, []);
 
   const filteredProducts = useMemo(() => {

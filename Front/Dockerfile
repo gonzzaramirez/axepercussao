@@ -17,11 +17,12 @@ RUN npm install sharp --legacy-peer-deps
 COPY . .
 
 
-# Declaramos que esperamos recibir esta variable durante el build
+# Variables de build (requeridas en producción para SSR/sitemap)
+# En Dokploy: Build Args = NEXT_PUBLIC_API_URL=https://api.tudominio.com NEXT_PUBLIC_SITE_URL=https://tudominio.com
 ARG NEXT_PUBLIC_API_URL
-# La asignamos al entorno para que Next.js la vea
+ARG NEXT_PUBLIC_SITE_URL=https://axepercussao.com
 ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
-# ---------------------------
+ENV NEXT_PUBLIC_SITE_URL=$NEXT_PUBLIC_SITE_URL
 
 # Build de Next.js
 RUN npm run build

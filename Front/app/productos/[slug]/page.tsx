@@ -1,10 +1,6 @@
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
-import { getProductBySlug as getProductBySlugAPI } from "@/lib/api/product";
-import {
-  getProductBySlug as getProductBySlugMock,
-  formatPrice,
-} from "@/lib/data";
+import { getProductBySlug } from "@/lib/api/product";
 import { Navbar } from "@/components/navbar";
 import { CartDrawer } from "@/components/cart-drawer";
 import { Footer } from "@/components/footer";
@@ -17,20 +13,7 @@ interface ProductPageProps {
 }
 
 async function getProduct(slug: string): Promise<Product | null> {
-  // Intentar desde API
-  try {
-    const product = await getProductBySlugAPI(slug);
-    if (product) return product;
-  } catch {
-    // Fallback a mock
-  }
-
-  // Fallback
-  const mock = getProductBySlugMock(slug);
-  if (mock) {
-    return { ...mock, image: mock.image || "/placeholder.svg" } as Product;
-  }
-  return null;
+  return getProductBySlug(slug);
 }
 
 export async function generateMetadata({

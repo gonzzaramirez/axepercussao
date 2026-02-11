@@ -5,7 +5,6 @@ import Link from "next/link"
 import { motion, useInView } from "framer-motion"
 import { ArrowRight } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { products as mockProducts } from "@/lib/data"
 import { getProducts } from "@/lib/api/product"
 import { ProductCard } from "@/components/product-card"
 import type { Product } from "@/types"
@@ -18,14 +17,7 @@ export function FeaturedProducts() {
   useEffect(() => {
     getProducts({ featured: true })
       .then(setFeatured)
-      .catch(() => {
-        // Fallback a datos mock
-        setFeatured(
-          mockProducts
-            .filter((p) => p.featured)
-            .map((p) => ({ ...p, image: p.image || "/placeholder.svg" } as Product))
-        )
-      })
+      .catch(() => setFeatured([]))
   }, [])
 
   return (
